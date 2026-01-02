@@ -11,7 +11,7 @@ export function useLoginForm() {
     successMessage: '¡Iniciaste sesión correctamente!',
     validationErrorMessage: 'Error de validación desconocido',
     onSuccess: async () => {
-      router.push(routes.DASHBOARD);
+      router.push(routes.CONTROL_PANEL);
     },
     cmsErrorMessages: {
       400: 'Correo o contraseña incorrectos.',

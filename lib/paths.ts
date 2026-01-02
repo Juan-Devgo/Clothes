@@ -22,7 +22,7 @@ export const env = {
 // Rutas de la aplicación
 export const routes = {
   HOME: '/',
-  DASHBOARD: '/dashboard',
+  CONTROL_PANEL: '/control-panel',
   LOGIN: '/login',
   REGISTER: '/register',
   REGISTER_VERIFY_USER: '/register/verify-user',
