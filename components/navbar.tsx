@@ -48,7 +48,7 @@ export default function Navbar() {
           </>
         ) : (
           <>
-            <Link href={routes.DASHBOARD}>
+            <Link href={routes.CONTROL_PANEL}>
               <button className="rounded-2xl bg-[#F3B3CB] text-gray-800 hover:bg-[#F7D2E0] px-3 py-1 cursor-pointer transition-colors duration-300">
                 Panel de Control
               </button>
