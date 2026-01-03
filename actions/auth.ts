@@ -1,6 +1,7 @@
 'use server';
 
 import { cookies } from 'next/headers';
+import { revalidateTag } from 'next/cache';
 
 import {
   loginService,
@@ -18,13 +19,22 @@ import { cookiesConfig } from '@/lib/cookies-config';
 import { redirect } from 'next/navigation';
 import { routes } from '@/lib/paths';
 import { jwtName, userDataVerifyCodeName } from '@/lib/jwt';
-import { checkUserExistsByEmail, sendAuthRegisterEmail, verifyCodeService } from '@/service/email';
+import {
+  checkUserExistsByEmail,
+  sendAuthRegisterEmail,
+  verifyCodeService,
+} from '@/service/email';
 
 /**
  * Cierra la sesión del usuario eliminando el token
  */
 export async function logoutAction(): Promise<void> {
   const cookieStore = await cookies();
+  const token = cookieStore.get(jwtName)?.value;
+
+  if (!token) return;
+
+  revalidateTag(`user-${token.substring(0, 16)}`, 'default');
   cookieStore.delete(jwtName);
   redirect(routes.HOME);
 }

@@ -1,9 +1,9 @@
 'use client';
 
-export default function DashboardLoading() {
+export default function ControlPanelLoading() {
   return (
-    <main className="bg-white min-h-screen flex flex-col items-center justify-center text-gray-800">
-      <strong>Cargando...</strong>
-    </main>
+    <div className="flex-1 flex flex-col items-center justify-center text-gray-800">
+      <strong>Cargando Dashboard...</strong>
+    </div>
   );
 }

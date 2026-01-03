@@ -1,8 +1,8 @@
 'use client';
 
-export default function DashboardError() {
+export default function ControlPanelError() {
   return (
-    <main className="bg-white min-h-screen flex flex-col items-center justify-center text-gray-800">
+    <div className="flex-1 flex flex-col items-center justify-center text-gray-800">
       <strong>Error cargando Dashboard. Vuelva a intentarlo.</strong>
       <button
         onClick={() => window.location.reload()}
@@ -10,6 +10,6 @@ export default function DashboardError() {
       >
         Reintentar
       </button>
-    </main>
+    </div>
   );
 }

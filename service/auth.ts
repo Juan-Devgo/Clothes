@@ -9,10 +9,28 @@ import {
 import { cookies } from 'next/headers';
 import { getMeServiceCMS, loginServiceCMS, registerServiceCMS } from './cms';
 import { jwtName, userDataVerifyCodeName } from '@/lib/jwt';
+import { cacheLife, cacheTag } from 'next/cache';
+
+/**
+ * Función cacheada que obtiene el usuario desde el CMS.
+ * Se cachea por token para evitar llamadas repetidas al CMS.
+ * Usa el perfil 'hours' (revalidate cada hora, stale por 5 minutos).
+ */
+async function getCachedUser(token: string): Promise<CurrentUser> {
+  'use cache';
+  cacheLife('hours');
+  cacheTag(`user-${token.substring(0, 16)}`); // Tag basado en parte del token para invalidación
+
+  const result = await getMeServiceCMS(token);
+  return result;
+}
 
 /**
  * Obtiene el usuario actual validando el token contra el CMS
  * Usar esta función en Server Components o Server Actions que necesiten datos del usuario
+ *
+ * La función lee las cookies (runtime) fuera del scope cacheado y pasa el token
+ * como argumento a la función cacheada.
  */
 export async function getCurrentUser(): Promise<CurrentUser> {
   const cookieStore = await cookies();
@@ -25,7 +43,7 @@ export async function getCurrentUser(): Promise<CurrentUser> {
     };
   }
 
-  const result = await getMeServiceCMS(token);
+  const result = await getCachedUser(token);
 
   // Si el token es inválido, eliminar la cookie
   if (!result.user && result.error) {
