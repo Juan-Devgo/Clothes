@@ -1,4 +1,12 @@
-import { LoginData, RegisterData, User, VerifyCodeData } from './types';
+import {
+  ChangePasswordData,
+  ChangePasswordAuthenticatedData,
+  LoginData,
+  RegisterData,
+  ResetPasswordData,
+  User,
+  VerifyUserData,
+} from './types';
 import { ValidationErrors, CmsErrors } from './errors';
 
 /**
@@ -52,6 +60,26 @@ export interface RegisterFormState extends FormState<RegisterData> {
   accountCreated?: boolean;
 }
 
-export interface ResetPasswordFormState extends FormState<VerifyCodeData> {}
+/** ResetPasswordFormState: Inicia el flujo de restablecimiento de contraseña
+ * Flujo: Forgot Password → Email con código enviado
+ */
+export interface ResetPasswordFormState extends FormState<ResetPasswordData> {}
 
-export interface VerifyUserFormState extends FormState<VerifyCodeData> {}
+/**
+ * ChangePasswordAuthenticatedFormState: Cambia contraseña para usuario autenticado
+ * Flujo: User logged in → Change Password → Contraseña cambiada
+ */
+export interface ChangePasswordAuthenticatedFormState
+  extends FormState<ChangePasswordAuthenticatedData> {}
+
+/**
+ * NewPasswordFormState: Restablece contraseña usando código de email
+ * Flujo: Forgot Password → Email con código → Ingresar nueva contraseña → Login
+ */
+export interface ChangePasswordFormState
+  extends FormState<ChangePasswordData> {}
+
+/** VerifyUserFormState: Verifica código enviado por email
+ * Flujo: Register → Email con código → Verificar código
+ */
+export interface VerifyUserFormState extends FormState<VerifyUserData> {}

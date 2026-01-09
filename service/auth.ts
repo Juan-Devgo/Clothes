@@ -71,14 +71,23 @@ export async function getUserDataVerifyCode(
   try {
     const parsed = JSON.parse(raw) as UserDataVerifyCode;
 
+    /**
+     * Si el tipo es 'auth-register' y no hay contraseña, o si el tipo es 'reset-password' y hay contraseña,
+     * entonces hay un error.
+     * auth-register requiere la contraseña para registrar al usuario.
+     * reset-password no requiere la contraseña para verificar el código.
+     */
+
     if (
       !parsed ||
       parsed.type !== type ||
       !parsed.email ||
-      !parsed.username ||
-      !parsed.password
+      (!parsed.password && type === 'auth-register') ||
+      (parsed.password && type === 'reset-password')
     ) {
-      console.log('Error parsing user data from cookie: Missing fields');
+      console.log(
+        'Error parsing user data from cookie: Missing fields or type mismatch'
+      );
       return null;
     }
 

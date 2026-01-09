@@ -15,6 +15,9 @@ export interface ValidationErrors {
   email?: string[];
   password?: string[];
   passwordConfirm?: string[];
+  currentPassword?: string[];
+  newPassword?: string[];
+  newPasswordConfirm?: string[];
   code?: string[];
 }
 

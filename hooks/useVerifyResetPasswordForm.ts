@@ -1,7 +1,11 @@
 'use client';
 
-import { verifyUserAction, clearVerifyUserDataAction } from '@/actions/auth';
+import {
+  verifyResetPasswordCodeAction,
+  clearResetPasswordDataAction,
+} from '@/actions/auth';
 import { useAuthForm } from './useAuthForm';
+
 import { useRouter } from 'next/navigation';
 import { routes } from '@/lib/paths';
 import { useState } from 'react';
@@ -9,29 +13,22 @@ import toast from 'react-hot-toast';
 
 const MAX_INVALID_CODE_ATTEMPTS = 3;
 
-export function useVerifyUserForm() {
+export function useVerifyResetPasswordForm() {
   const router = useRouter();
   const [invalidCodeAttempts, setInvalidCodeAttempts] = useState(0);
 
   return useAuthForm({
-    action: verifyUserAction,
-    successMessage: '¡Cuenta creada exitosamente!',
+    action: verifyResetPasswordCodeAction,
+    successMessage: '¡Código verificado exitosamente!',
     validationErrorMessage: 'Error de validación desconocido',
     onSuccess: async () => {
-      router.push(routes.LOGIN);
+      // refresh() asegura que las cookies actualizadas por la Server Action
+      // estén disponibles antes de navegar a la página de cambiar contraseña
+      router.refresh();
+      router.push(routes.CHANGE_PASSWORD);
     },
     onCmsError: async (cmsErrors) => {
       const status = cmsErrors?.status;
-
-      // 409: Usuario ya registrado - redirigir a login
-      if (status === 409) {
-        toast.error(
-          'Usted ya está registrado. Redirigiendo a inicio de sesión...'
-        );
-        await clearVerifyUserDataAction();
-        router.push(routes.LOGIN);
-        return true; // Ya manejamos el toast
-      }
 
       // 400: Código inválido - contar intentos
       if (status === 400) {
@@ -40,20 +37,26 @@ export function useVerifyUserForm() {
         const remaining = MAX_INVALID_CODE_ATTEMPTS - newAttempts;
 
         if (remaining <= 0) {
-          toast.error('Ha agotado sus intentos. Debe registrarse de nuevo.');
-          await clearVerifyUserDataAction();
-          router.push(routes.REGISTER);
+          toast.error(
+            'Ha agotado sus intentos. Debe solicitar un nuevo código.'
+          );
+          await clearResetPasswordDataAction();
+          router.push(routes.RESET_PASSWORD);
         } else {
-          toast.error(`Código inválido. Intentos restantes: ${remaining}`);
+          toast.error(
+            `Código incorrecto. Tiene ${remaining} intento${
+              remaining !== 1 ? 's' : ''
+            } restante${remaining !== 1 ? 's' : ''}.`
+          );
         }
         return true; // Ya manejamos el toast
       }
 
-      // 500: Error de servidor - redirigir a register
+      // 500: Error de servidor - redirigir a reset-password
       if (status === 500) {
-        toast.error('Error de servidor. Intente registrarse de nuevo.');
-        await clearVerifyUserDataAction();
-        router.push(routes.REGISTER);
+        toast.error('Error de servidor. Intente solicitar un nuevo código.');
+        await clearResetPasswordDataAction();
+        router.push(routes.RESET_PASSWORD);
         return true; // Ya manejamos el toast
       }
 

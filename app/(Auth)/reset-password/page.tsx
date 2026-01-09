@@ -1,37 +1,9 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useResetPasswordForm } from '@/hooks/useResetPasswordForm';
 
 export default function ResetPassword() {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get('email');
-
-    try {
-      // Aquí iría la lógica para enviar el correo
-      // const response = await fetch('/api/send-reset-email', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ email }),
-      // });
-
-      // Simular envío por ahora
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Navegar con animación
-      router.push('/reset-password/enter-code');
-    } catch (error) {
-      console.error('Error:', error);
-      setIsLoading(false);
-    }
-  };
+  const { formState, handleSubmit, isPending } = useResetPasswordForm();
 
   return (
     <main className="bg-white min-h-screen flex flex-col items-center justify-center text-gray-800">
@@ -43,21 +15,29 @@ export default function ResetPassword() {
             <strong>código de restablecimiento.</strong>
           </p>
         </div>
-        <form className="flex flex-col gap-2 my-4 px-6" onSubmit={handleSubmit}>
+        <form
+          className="flex flex-col gap-2 my-4 px-6"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSubmit(new FormData(e.currentTarget));
+          }}
+        >
           <label htmlFor="email">Correo Electrónico</label>
           <input
             type="email"
             id="email"
             name="email"
             required
+            disabled={isPending}
+            defaultValue={formState?.data?.email ?? ''}
             className="rounded border border-black"
           />
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isPending}
             className="rounded-2xl bg-[#F7D2E0] p-1 mt-3 cursor-pointer hover:bg-[#F3B3CB] transition-all duration-300 w-full disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Enviando...' : 'Enviar Código'}
+            {isPending ? 'Enviando...' : 'Enviar Código'}
           </button>
         </form>
       </div>

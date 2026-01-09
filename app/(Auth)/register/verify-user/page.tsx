@@ -1,7 +1,7 @@
 import { getUserDataVerifyCode } from '@/service/auth';
 import { redirect } from 'next/navigation';
 import { routes } from '@/lib/paths';
-import VerifyUserForm from '@/components/verify-user-form';
+import CodeInputForm from '@/components/code-input-form';
 
 export default async function VerifyUser() {
   const userData = await getUserDataVerifyCode('auth-register');
@@ -20,7 +20,8 @@ export default async function VerifyUser() {
             <strong>para verificar tu cuenta.</strong>
           </p>
         </div>
-        <VerifyUserForm
+        <CodeInputForm
+          type="verify-user"
           email={userData.email}
           username={userData.username}
           password={userData.password}

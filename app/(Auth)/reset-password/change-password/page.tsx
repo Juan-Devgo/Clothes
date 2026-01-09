@@ -1,12 +1,14 @@
-import CodeInputForm from '@/components/code-input-form';
+import ChangePasswordForm from '@/components/change-password-form';
 import { routes } from '@/lib/paths';
 import { getUserDataVerifyCode } from '@/service/auth';
 import { redirect } from 'next/navigation';
 
-export default async function EnterCode() {
+export default async function ChangePassword() {
   const userData = await getUserDataVerifyCode('reset-password');
 
-  if (!userData?.email) {
+  console.log('User data for change password:', userData);
+
+  if (!userData?.email || !userData?.code) {
     redirect(routes.RESET_PASSWORD);
   }
 
@@ -14,13 +16,12 @@ export default async function EnterCode() {
     <main className="bg-white min-h-screen flex flex-col items-center justify-center text-gray-800">
       <div className="rounded-3xl border border-gray-200 shadow-2xl w-96">
         <div className="text-center my-4 mx-2">
-          <h1 className="text-4xl">Ingresa el Código que Recibiste</h1>
+          <h1 className="text-4xl">Cambia tu Contraseña</h1>
           <p className="text-md text-gray-800 mt-1">
-            Ingresa el código que recibiste en tu correo para{' '}
-            <strong>reestablecer tu contraseña.</strong>
+            Ingresa tu nueva contraseña para restablecer tu contraseña.
           </p>
         </div>
-        <CodeInputForm type="reset-password" email={userData.email} />
+        <ChangePasswordForm email={userData.email} code={userData.code} />
       </div>
     </main>
   );

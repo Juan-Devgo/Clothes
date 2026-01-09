@@ -1,3 +1,5 @@
+'use client';
+
 import { FormState, UseAuthFormConfig } from '@/types/auth/forms';
 import { useState, useTransition } from 'react';
 import toast from 'react-hot-toast';
@@ -5,6 +7,7 @@ import toast from 'react-hot-toast';
 /**
  * Hook genérico para manejar acciones de autenticación (registro, login, etc)
  * Maneja automáticamente los toasts cuando la acción termina de ejecutarse
+ * Resetea el estado automáticamente cuando cambia la ruta
  *
  * @example
  * const { formState, handleSubmit, isPending } = useAuthForm({

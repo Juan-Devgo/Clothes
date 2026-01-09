@@ -35,6 +35,40 @@ export const ResetPasswordSchema = z.object({
   email: z.email('Ingrese un correo electrónico válido'),
 });
 
+export const ChangePasswordAuthenticatedSchema = z
+  .object({
+    currentPassword: z
+      .string('Campo requerido')
+      .min(8, 'La contraseña actual debe tener al menos 8 caracteres')
+      .max(128, 'La contraseña actual es demasiado larga'),
+    password: z
+      .string('Campo requerido')
+      .min(8, 'La contraseña debe tener al menos 8 caracteres')
+      .max(128, 'La contraseña es demasiado larga'),
+    passwordConfirm: z.string('Campo requerido'),
+  })
+  .refine((data) => data.password === data.passwordConfirm, {
+    message: 'Las contraseñas no coinciden',
+    path: ['passwordConfirm'],
+  });
+
 export const VerifyCodeSchema = z.object({
   code: z.string('Campo requerido').length(4, 'El código debe tener 4 dígitos'),
 });
+
+/**
+ * Schema para restablecer contraseña usando código de email
+ * NO requiere contraseña actual (flujo forgot-password)
+ */
+export const ChangePasswordSchema = z
+  .object({
+    newPassword: z
+      .string('Campo requerido')
+      .min(8, 'La contraseña debe tener al menos 8 caracteres')
+      .max(128, 'La contraseña es demasiado larga'),
+    newPasswordConfirm: z.string('Campo requerido'),
+  })
+  .refine((data) => data.newPassword === data.newPasswordConfirm, {
+    message: 'Las contraseñas no coinciden',
+    path: ['newPasswordConfirm'],
+  });

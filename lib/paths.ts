@@ -28,6 +28,7 @@ export const routes = {
   REGISTER_VERIFY_USER: '/register/verify-user',
   RESET_PASSWORD: '/reset-password',
   RESET_PASSWORD_CODE: '/reset-password/enter-code',
+  CHANGE_PASSWORD: '/reset-password/change-password',
 } as const;
 
 // Rutas de API del CMS
@@ -35,11 +36,14 @@ export const cmsApi = {
   BASE_URL: env.CMS_URL,
   AUTH_LOCAL: `${env.CMS_URL}/api/auth/local`,
   AUTH_LOCAL_REGISTER: `${env.CMS_URL}/api/auth/local/register`,
+  AUTH_CHANGE_PASSWORD: `${env.CMS_URL}/api/auth/change-password`,
+  RESET_PASSWORD: `${env.CMS_URL}/api/password-reset`,
   USERS: `${env.CMS_URL}/api/users`,
   USERS_ME: `${env.CMS_URL}/api/users/me`,
   VERIFY_CODE: `${env.CMS_URL}/api/mailer/verify-code`,
   SEND_EMAIL_AUTH_REGISTER: `${env.CMS_URL}/api/mailer/auth-register`,
   SEND_EMAIL_RESET_PASSWORD: `${env.CMS_URL}/api/mailer/reset-password`,
+  SEND_EMAIL_TEST: `${env.CMS_URL}/api/mailer/test`,
 } as const;
 
 // Type-safe config object

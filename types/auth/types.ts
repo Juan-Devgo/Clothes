@@ -31,12 +31,33 @@ export interface RegisterData {
   passwordConfirm?: string;
 }
 
-export interface VerifyCodeData {
+export interface VerifyUserData {
   username: string;
   email: string;
   password: string;
-  type: 'reset-password' | 'auth-register' | undefined;
+  type: 'auth-register' | undefined;
   code: string[];
+}
+
+export interface ResetPasswordData {
+  email: string;
+}
+
+export interface ChangePasswordAuthenticatedData {
+  currentPassword: string;
+  newPassword: string;
+  newPasswordConfirm: string;
+}
+
+/**
+ * Datos para restablecer contraseña usando código de email
+ * NO requiere contraseña actual
+ */
+export interface ChangePasswordData {
+  email: string;
+  newPassword: string;
+  newPasswordConfirm: string;
+  code: string;
 }
 
 /**
@@ -63,6 +84,7 @@ export interface UserDataVerifyCode {
   email: string;
   username: string;
   password: string;
+  code: string;
 }
 
 /**
@@ -84,4 +106,5 @@ export interface VerifyCodeParams {
   email: string;
   code: string;
   type: 'auth-register' | 'reset-password';
+  markAsUsed: boolean;
 }

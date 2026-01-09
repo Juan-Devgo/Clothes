@@ -1,3 +1,5 @@
+'use client';
+
 import { registerAction } from '@/actions/auth';
 import { useAuthForm } from './useAuthForm';
 import { useRouter } from 'next/navigation';
