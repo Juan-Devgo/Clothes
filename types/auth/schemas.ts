@@ -53,7 +53,10 @@ export const ChangePasswordAuthenticatedSchema = z
   });
 
 export const VerifyCodeSchema = z.object({
-  code: z.string('Campo requerido').length(4, 'El código debe tener 4 dígitos'),
+  code: z
+    .string('Campo requerido')
+    .length(4, 'El código debe tener 4 dígitos')
+    .regex(/^\d{4}$/, 'El código debe contener solo números'),
 });
 
 /**

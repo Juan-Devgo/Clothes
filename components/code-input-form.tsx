@@ -1,9 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
-import { useVerifyUserForm } from '@/hooks/useVerifyUserForm';
-import { useVerifyResetPasswordForm } from '@/hooks/useVerifyResetPasswordForm';
-import { usePathname } from 'next/navigation';
+import { useCodeVerificationForm } from '@/hooks/useCodeVerificationForm';
 
 type FormType = 'verify-user' | 'reset-password';
 
@@ -45,12 +43,8 @@ export default function CodeInputForm({
     setCode(['', '', '', '']);
   }, [type]);
 
-  // Seleccionar el hook según el tipo
-  const verifyUserForm = useVerifyUserForm();
-  const resetPasswordForm = useVerifyResetPasswordForm();
-
-  const { handleSubmit, isPending } =
-    type === 'verify-user' ? verifyUserForm : resetPasswordForm;
+  // Un solo hook que maneja ambos tipos
+  const { handleSubmit, isPending } = useCodeVerificationForm(type);
 
   const config = formConfig[type];
 

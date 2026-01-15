@@ -2,7 +2,7 @@
 
 import {
   verifyResetPasswordCodeAction,
-  clearResetPasswordDataAction,
+  clearTemporaryDataAction,
 } from '@/actions/auth';
 import { useAuthForm } from './useAuthForm';
 
@@ -40,7 +40,7 @@ export function useVerifyResetPasswordForm() {
           toast.error(
             'Ha agotado sus intentos. Debe solicitar un nuevo código.'
           );
-          await clearResetPasswordDataAction();
+          await clearTemporaryDataAction();
           router.push(routes.RESET_PASSWORD);
         } else {
           toast.error(
@@ -55,7 +55,7 @@ export function useVerifyResetPasswordForm() {
       // 500: Error de servidor - redirigir a reset-password
       if (status === 500) {
         toast.error('Error de servidor. Intente solicitar un nuevo código.');
-        await clearResetPasswordDataAction();
+        await clearTemporaryDataAction();
         router.push(routes.RESET_PASSWORD);
         return true; // Ya manejamos el toast
       }

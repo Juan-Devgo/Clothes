@@ -1,6 +1,6 @@
 'use client';
 
-import { verifyUserAction, clearVerifyUserDataAction } from '@/actions/auth';
+import { verifyUserAction, clearTemporaryDataAction } from '@/actions/auth';
 import { useAuthForm } from './useAuthForm';
 import { useRouter } from 'next/navigation';
 import { routes } from '@/lib/paths';
@@ -28,7 +28,7 @@ export function useVerifyUserForm() {
         toast.error(
           'Usted ya está registrado. Redirigiendo a inicio de sesión...'
         );
-        await clearVerifyUserDataAction();
+        await clearTemporaryDataAction();
         router.push(routes.LOGIN);
         return true; // Ya manejamos el toast
       }
@@ -41,7 +41,7 @@ export function useVerifyUserForm() {
 
         if (remaining <= 0) {
           toast.error('Ha agotado sus intentos. Debe registrarse de nuevo.');
-          await clearVerifyUserDataAction();
+          await clearTemporaryDataAction();
           router.push(routes.REGISTER);
         } else {
           toast.error(`Código inválido. Intentos restantes: ${remaining}`);
@@ -52,7 +52,7 @@ export function useVerifyUserForm() {
       // 500: Error de servidor - redirigir a register
       if (status === 500) {
         toast.error('Error de servidor. Intente registrarse de nuevo.');
-        await clearVerifyUserDataAction();
+        await clearTemporaryDataAction();
         router.push(routes.REGISTER);
         return true; // Ya manejamos el toast
       }

@@ -1,11 +1,16 @@
 import { env as cmsEnv } from '@/lib/cms';
 import { cmsApi } from '@/lib/paths';
 import { LoginData, RegisterData, User } from '@/types/auth/types';
+import { cmsLogger } from '@/lib/logger';
 
 export async function registerServiceCMS(userData: RegisterData | undefined) {
   if (!userData) throw new Error('No user data provided.');
 
   const url = cmsApi.AUTH_LOCAL_REGISTER;
+  cmsLogger.info(
+    { email: userData.email },
+    'CMS: Iniciando registro de usuario'
+  );
 
   try {
     const response = await fetch(url, {
@@ -18,9 +23,13 @@ export async function registerServiceCMS(userData: RegisterData | undefined) {
 
     const data = await response.json();
 
+    cmsLogger.info(
+      { email: userData.email, success: !data.error },
+      'CMS: Registro completado'
+    );
     return data;
   } catch (error) {
-    console.log('Error registering user:', error);
+    cmsLogger.error({ email: userData.email, error }, 'CMS: Error en registro');
     throw error;
   }
 }
@@ -29,6 +38,7 @@ export async function loginServiceCMS(userData: LoginData | undefined) {
   if (!userData) throw new Error('No user data provided.');
 
   const url = cmsApi.AUTH_LOCAL;
+  cmsLogger.info({ email: userData.identifier }, 'CMS: Iniciando login');
 
   try {
     const response = await fetch(url, {
@@ -41,9 +51,16 @@ export async function loginServiceCMS(userData: LoginData | undefined) {
 
     const data = await response.json();
 
+    cmsLogger.info(
+      { email: userData.identifier, success: !data.error },
+      'CMS: Login completado'
+    );
     return data;
   } catch (error) {
-    console.log('Error loging user:', error);
+    cmsLogger.error(
+      { email: userData.identifier, error },
+      'CMS: Error en login'
+    );
     throw error;
   }
 }
@@ -56,6 +73,7 @@ export async function loginServiceCMS(userData: LoginData | undefined) {
 export async function getMeServiceCMS(
   token: string
 ): Promise<{ user: User | null; error?: { status: number; message: string } }> {
+  cmsLogger.info('CMS: Obteniendo usuario actual');
   try {
     const response = await fetch(cmsApi.USERS_ME, {
       method: 'GET',
@@ -68,6 +86,10 @@ export async function getMeServiceCMS(
     });
 
     if (!response.ok) {
+      cmsLogger.warn(
+        { status: response.status },
+        'CMS: Token inválido o expirado'
+      );
       return {
         user: null,
         error: {
@@ -81,6 +103,7 @@ export async function getMeServiceCMS(
 
     // Si hay error en la respuesta del CMS
     if ('error' in user) {
+      cmsLogger.warn('CMS: Token inválido en respuesta');
       return {
         user: null,
         error: {
@@ -90,9 +113,10 @@ export async function getMeServiceCMS(
       };
     }
 
+    cmsLogger.info({ userId: user.id }, 'CMS: Usuario obtenido exitosamente');
     return { user };
   } catch (error) {
-    console.error('Error fetching current user:', error);
+    cmsLogger.error({ error }, 'CMS: Error obteniendo usuario');
     return {
       user: null,
       error: {
@@ -123,6 +147,7 @@ export async function changePasswordAuthenticatedServiceCMS(
   user?: User;
   error?: { status: number; message: string };
 }> {
+  cmsLogger.info('CMS: Iniciando cambio de contraseña autenticado');
   try {
     const response = await fetch(cmsApi.AUTH_CHANGE_PASSWORD, {
       method: 'POST',
@@ -136,6 +161,10 @@ export async function changePasswordAuthenticatedServiceCMS(
     const responseData = await response.json();
 
     if (!response.ok) {
+      cmsLogger.warn(
+        { status: response.status },
+        'CMS: Cambio contraseña fallido'
+      );
       return {
         success: false,
         error: {
@@ -146,13 +175,14 @@ export async function changePasswordAuthenticatedServiceCMS(
       };
     }
 
+    cmsLogger.info('CMS: Cambio contraseña exitoso');
     return {
       success: true,
       jwt: responseData.jwt,
       user: responseData.user,
     };
   } catch (error) {
-    console.error('Error changing password:', error);
+    cmsLogger.error({ error }, 'CMS: Error en cambio de contraseña');
     return {
       success: false,
       error: {
@@ -177,6 +207,10 @@ export async function changePasswordServiceCMS(data: {
   status: number;
   message: string;
 }> {
+  cmsLogger.info(
+    { email: data.email },
+    'CMS: Iniciando restablecimiento de contraseña'
+  );
   try {
     const response = await fetch(cmsApi.RESET_PASSWORD, {
       method: 'POST',
@@ -189,9 +223,16 @@ export async function changePasswordServiceCMS(data: {
 
     const responseData = await response.json();
 
+    cmsLogger.info(
+      { email: data.email, status: responseData.status },
+      'CMS: Restablecimiento completado'
+    );
     return responseData;
   } catch (error) {
-    console.error('Error resetting password:', error);
+    cmsLogger.error(
+      { email: data.email, error },
+      'CMS: Error en restablecimiento'
+    );
     throw error;
   }
 }

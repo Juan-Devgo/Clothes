@@ -85,15 +85,11 @@ export async function getUserDataVerifyCode(
       (!parsed.password && type === 'auth-register') ||
       (parsed.password && type === 'reset-password')
     ) {
-      console.log(
-        'Error parsing user data from cookie: Missing fields or type mismatch'
-      );
       return null;
     }
 
     return parsed;
-  } catch (error) {
-    console.log('Error parsing user data from cookie:', error);
+  } catch {
     return null;
   }
 }

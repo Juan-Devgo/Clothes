@@ -22,8 +22,9 @@ import {
   ResetPasswordSchema,
   ChangePasswordSchema,
   ChangePasswordAuthenticatedSchema,
+  VerifyCodeSchema,
 } from '@/types/auth/schemas';
-import z, { email } from 'zod';
+import z from 'zod';
 import { cookiesConfig } from '@/lib/cookies-config';
 import { redirect } from 'next/navigation';
 import { routes } from '@/lib/paths';
@@ -39,24 +40,35 @@ import {
   changePasswordAuthenticatedServiceCMS,
   changePasswordServiceCMS,
 } from '@/service/cms';
+import { encrypt, decrypt } from '@/lib/crypto';
+import { authLogger } from '@/lib/logger';
 
 /**
  * Cierra la sesión del usuario eliminando el token
  */
 export async function logoutAction(): Promise<void> {
+  authLogger.info('Iniciando logout');
   const cookieStore = await cookies();
   const token = cookieStore.get(jwtName)?.value;
 
-  if (!token) return;
+  if (!token) {
+    authLogger.warn('Logout fallido: no hay token');
+    return;
+  }
 
   revalidateTag(`user-${token.substring(0, 16)}`, 'default');
   cookieStore.delete(jwtName);
+  authLogger.info('Logout exitoso');
   redirect(routes.HOME);
 }
 
 export async function registerAction(
   formData: FormData
 ): Promise<RegisterFormState> {
+  authLogger.info(
+    { email: formData.get('email') },
+    'Iniciando registro de usuario'
+  );
   const fields = {
     username: formData.get('username') as string,
     email: formData.get('email') as string,
@@ -70,6 +82,10 @@ export async function registerAction(
   if (!validatedFields.success) {
     const flattenedErrors = z.flattenError(validatedFields.error);
 
+    authLogger.warn(
+      { errors: flattenedErrors.fieldErrors },
+      'Registro fallido: error de validación'
+    );
     return {
       success: false,
       message: 'Error de validación.',
@@ -79,7 +95,7 @@ export async function registerAction(
     };
   }
 
-  // Petición al CMS
+  // Peticiones al CMS
 
   //Primero se verifica que no exista el usuario
   const userExistsResponse = await checkUserExistsByEmail(
@@ -87,6 +103,10 @@ export async function registerAction(
   );
 
   if (userExistsResponse.exists) {
+    authLogger.warn(
+      { email: validatedFields.data.email },
+      'Registro fallido: email ya registrado'
+    );
     return {
       success: false,
       message: 'El correo electrónico ya está registrado.',
@@ -102,9 +122,11 @@ export async function registerAction(
     validatedFields.data.email
   );
 
-  console.log('Response from sendTestEmail:', sendVerifyEmailResponse);
-
   if (!sendVerifyEmailResponse || !sendVerifyEmailResponse.success) {
+    authLogger.error(
+      { email: validatedFields.data.email },
+      'Registro fallido: error enviando email de verificación'
+    );
     return {
       success: false,
       message: 'Error enviando el correo de verificación.',
@@ -121,12 +143,11 @@ export async function registerAction(
     username: validatedFields.data.username,
   });
 
-  console.log(
-    'Response from sendAuthRegisterEmail:',
-    sendAuthRegisterEmailResponse
-  );
-
   if (!sendAuthRegisterEmailResponse || sendAuthRegisterEmailResponse.error) {
+    authLogger.error(
+      { email: validatedFields.data.email },
+      'Registro fallido: error enviando email de autorización'
+    );
     return {
       success: false,
       message: 'Error enviando el correo de verificación.',
@@ -143,17 +164,21 @@ export async function registerAction(
     userDataVerifyCodeName,
     JSON.stringify({
       type: 'auth-register',
-      email: fields.email,
-      username: fields.username,
-      password: fields.password,
+      email: validatedFields.data.email,
+      username: validatedFields.data.username,
+      password: encrypt(validatedFields.data.password),
     }),
     cookiesConfig
   );
 
+  authLogger.info(
+    { email: validatedFields.data.email },
+    'Registro exitoso: datos guardados, pendiente verificación'
+  );
   return {
     success: true,
     message: 'Datos válidos.',
-    data: fields,
+    data: validatedFields.data,
     validationErrors: {},
     cmsErrors: {},
   };
@@ -162,6 +187,10 @@ export async function registerAction(
 export async function resetPasswordAction(
   formData: FormData
 ): Promise<ResetPasswordFormState> {
+  authLogger.info(
+    { email: formData.get('email') },
+    'Iniciando solicitud de reseteo de contraseña'
+  );
   const fields = {
     email: formData.get('email') as string,
   };
@@ -172,6 +201,10 @@ export async function resetPasswordAction(
   if (!validatedFields.success) {
     const flattenedErrors = z.flattenError(validatedFields.error);
 
+    authLogger.warn(
+      { errors: flattenedErrors.fieldErrors },
+      'Reset password fallido: error de validación'
+    );
     return {
       success: false,
       message: 'Error de validación.',
@@ -190,6 +223,10 @@ export async function resetPasswordAction(
   );
 
   if (!userExistsResponse.exists) {
+    authLogger.warn(
+      { email: validatedFields.data.email },
+      'Reset password fallido: email no registrado'
+    );
     return {
       success: false,
       message: 'El correo electrónico no está registrado.',
@@ -207,6 +244,10 @@ export async function resetPasswordAction(
   });
 
   if (!sendEmailResponse || sendEmailResponse.error) {
+    authLogger.error(
+      { email: validatedFields.data.email },
+      'Reset password fallido: error enviando email'
+    );
     return {
       success: false,
       message: 'Error enviando el correo de reseteo de contraseña.',
@@ -229,6 +270,10 @@ export async function resetPasswordAction(
     cookiesConfig
   );
 
+  authLogger.info(
+    { email: validatedFields.data.email },
+    'Reset password exitoso: email enviado'
+  );
   return {
     success: true,
     message: 'Correo de reseteo de contraseña enviado exitosamente.',
@@ -239,6 +284,7 @@ export async function resetPasswordAction(
 }
 
 export async function loginAction(formData: FormData): Promise<LoginFormState> {
+  authLogger.info({ email: formData.get('email') }, 'Iniciando login');
   const fields = {
     identifier: formData.get('email') as string,
     password: formData.get('password') as string,
@@ -250,6 +296,10 @@ export async function loginAction(formData: FormData): Promise<LoginFormState> {
   if (!validatedFields.success) {
     const flattenedErrors = z.flattenError(validatedFields.error);
 
+    authLogger.warn(
+      { errors: flattenedErrors.fieldErrors },
+      'Login fallido: error de validación'
+    );
     return {
       success: false,
       message: 'Error de validación.',
@@ -263,6 +313,10 @@ export async function loginAction(formData: FormData): Promise<LoginFormState> {
   const response = await loginService(validatedFields.data);
 
   if (!response || response.error) {
+    authLogger.warn(
+      { email: validatedFields.data.identifier },
+      'Login fallido: credenciales inválidas'
+    );
     return {
       success: false,
       message: 'Error en el inicio de sesión.',
@@ -276,6 +330,7 @@ export async function loginAction(formData: FormData): Promise<LoginFormState> {
   const cookieStore = await cookies();
   cookieStore.set(jwtName, response.jwt, cookiesConfig);
 
+  authLogger.info({ email: validatedFields.data.identifier }, 'Login exitoso');
   return {
     success: true,
     message: 'Inicio de sesión exitoso.',
@@ -288,6 +343,10 @@ export async function loginAction(formData: FormData): Promise<LoginFormState> {
 export async function verifyUserAction(
   formData: FormData
 ): Promise<VerifyUserFormState> {
+  authLogger.info(
+    { email: formData.get('email') },
+    'Iniciando verificación de usuario'
+  );
   const fields = {
     username: formData.get('username') as string,
     email: formData.get('email') as string,
@@ -302,6 +361,21 @@ export async function verifyUserAction(
   };
 
   const fullCode = fields.code.join('');
+
+  // Validar formato del código
+  const validatedCode = VerifyCodeSchema.safeParse({ code: fullCode });
+
+  if (!validatedCode.success) {
+    return {
+      success: false,
+      message: 'Código inválido.',
+      data: fields,
+      validationErrors: {
+        code: validatedCode.error.issues.map((e) => e.message),
+      },
+      cmsErrors: {},
+    };
+  }
 
   // Peticiones al CMS
   const verifyCodeResponse = await verifyCodeService({
@@ -326,10 +400,14 @@ export async function verifyUserAction(
   const registerResponse = await registerService({
     username: fields.username,
     email: fields.email,
-    password: fields.password,
+    password: decrypt(fields.password),
   });
 
   if (!registerResponse || registerResponse.error) {
+    authLogger.error(
+      { email: fields.email },
+      'Verificación fallida: error al registrar usuario en CMS'
+    );
     return {
       success: false,
       message: 'Error en el registro.',
@@ -342,6 +420,10 @@ export async function verifyUserAction(
   // Eliminar la cookie de datos temporales después del registro exitoso
   await deleteUserDataVerifyCodeCookie();
 
+  authLogger.info(
+    { email: fields.email },
+    'Verificación exitosa: usuario registrado'
+  );
   return {
     success: true,
     message: 'Código verificado exitosamente.',
@@ -354,6 +436,10 @@ export async function verifyUserAction(
 export async function verifyResetPasswordCodeAction(
   formData: FormData
 ): Promise<ResetPasswordFormState> {
+  authLogger.info(
+    { email: formData.get('email') },
+    'Iniciando verificación de código de reset password'
+  );
   const fields = {
     email: formData.get('email') as string,
     type: formData.get('type') as 'reset-password',
@@ -365,9 +451,26 @@ export async function verifyResetPasswordCodeAction(
     ] as string[],
   };
 
-  console.log('Verifying reset password code with fields:', fields);
-
   const fullCode = fields.code.join('');
+
+  // Validar formato del código
+  const validatedCode = VerifyCodeSchema.safeParse({ code: fullCode });
+
+  if (!validatedCode.success) {
+    authLogger.warn(
+      { email: fields.email },
+      'Verificación reset password fallida: código inválido (formato)'
+    );
+    return {
+      success: false,
+      message: 'Código inválido.',
+      data: fields,
+      validationErrors: {
+        code: validatedCode.error.issues.map((e) => e.message),
+      },
+      cmsErrors: {},
+    };
+  }
 
   // Petición al CMS
 
@@ -379,6 +482,10 @@ export async function verifyResetPasswordCodeAction(
   });
 
   if (!verifyCodeResponse || !verifyCodeResponse.result?.valid) {
+    authLogger.warn(
+      { email: fields.email },
+      'Verificación reset password fallida: código inválido o expirado'
+    );
     return {
       success: false,
       message: 'Código inválido o expirado.',
@@ -402,6 +509,10 @@ export async function verifyResetPasswordCodeAction(
     cookiesConfig
   );
 
+  authLogger.info(
+    { email: fields.email },
+    'Verificación reset password exitosa'
+  );
   return {
     success: true,
     message: 'Código verificado exitosamente.',
@@ -412,14 +523,10 @@ export async function verifyResetPasswordCodeAction(
 }
 
 /**
- * Server Action para eliminar la cookie de datos de verificación
+ * Server Action unificada para eliminar la cookie de datos temporales
  * Se usa cuando hay errores críticos y el usuario debe reiniciar el flujo
  */
-export async function clearVerifyUserDataAction(): Promise<void> {
-  await deleteUserDataVerifyCodeCookie();
-}
-
-export async function clearResetPasswordDataAction(): Promise<void> {
+export async function clearTemporaryDataAction(): Promise<void> {
   await deleteUserDataVerifyCodeCookie();
 }
 
@@ -430,6 +537,7 @@ export async function clearResetPasswordDataAction(): Promise<void> {
 export async function changePasswordAuthenticatedAction(
   formData: FormData
 ): Promise<ChangePasswordAuthenticatedFormState> {
+  authLogger.info('Iniciando cambio de contraseña (usuario autenticado)');
   const fields = {
     currentPassword: formData.get('current-password') as string,
     newPassword: formData.get('password') as string,
@@ -456,6 +564,7 @@ export async function changePasswordAuthenticatedAction(
   const token = cookieStore.get(jwtName)?.value;
 
   if (!token) {
+    authLogger.warn('Cambio contraseña fallido: usuario no autenticado');
     return {
       success: false,
       message: 'No estás autenticado.',
@@ -473,6 +582,10 @@ export async function changePasswordAuthenticatedAction(
   });
 
   if (!response.success) {
+    authLogger.error(
+      { status: response.error?.status },
+      'Cambio contraseña fallido: error del CMS'
+    );
     return {
       success: false,
       message: response.error?.message || 'Error al cambiar la contraseña.',
@@ -488,6 +601,7 @@ export async function changePasswordAuthenticatedAction(
     cookieStore.set(jwtName, response.jwt, cookiesConfig);
   }
 
+  authLogger.info('Cambio contraseña exitoso (usuario autenticado)');
   return {
     success: true,
     message: 'Contraseña cambiada exitosamente.',
@@ -505,6 +619,10 @@ export async function changePasswordAuthenticatedAction(
 export async function changePasswordAction(
   formData: FormData
 ): Promise<ChangePasswordFormState> {
+  authLogger.info(
+    { email: formData.get('email') },
+    'Iniciando restablecimiento de contraseña'
+  );
   const fields = {
     email: formData.get('email') as string,
     newPassword: formData.get('new-password') as string,
@@ -521,6 +639,10 @@ export async function changePasswordAction(
   if (!validatedFields.success) {
     const flattenedErrors = z.flattenError(validatedFields.error);
 
+    authLogger.warn(
+      { email: fields.email, errors: flattenedErrors.fieldErrors },
+      'Restablecimiento fallido: error de validación'
+    );
     return {
       success: false,
       message: 'Error de validación.',
@@ -538,6 +660,10 @@ export async function changePasswordAction(
   });
 
   if (response.status === 400) {
+    authLogger.error(
+      { email: fields.email, status: response.status },
+      'Restablecimiento fallido: código inválido o expirado'
+    );
     return {
       success: false,
       message: response.message || 'Error al restablecer la contraseña.',
@@ -550,6 +676,10 @@ export async function changePasswordAction(
   // Limpiar la cookie de datos de verificación
   await deleteUserDataVerifyCodeCookie();
 
+  authLogger.info(
+    { email: fields.email },
+    'Restablecimiento de contraseña exitoso'
+  );
   return {
     success: true,
     message: 'Contraseña restablecida exitosamente.',

@@ -6,8 +6,6 @@ import { redirect } from 'next/navigation';
 export default async function ChangePassword() {
   const userData = await getUserDataVerifyCode('reset-password');
 
-  console.log('User data for change password:', userData);
-
   if (!userData?.email || !userData?.code) {
     redirect(routes.RESET_PASSWORD);
   }
