@@ -1,0 +1,1 @@
+export { useGetAccount } from './useGetAccount';

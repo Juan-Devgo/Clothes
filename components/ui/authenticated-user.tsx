@@ -9,8 +9,8 @@ export default async function AuthenticatedUser() {
   return (
     <div className="flex gap-4 items-center">
       {/**<a href="/profile">**/}
-      <div className="rounded-full bg-white">
-        <PersonIcon />
+      <div className="rounded-full bg-gray-100">
+        <PersonIcon size="8" color="black" />
       </div>
       {/**</a>**/}
       <span className="text-xl">{currentUser.user?.username}</span>

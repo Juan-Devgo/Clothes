@@ -44,6 +44,13 @@ export const cmsApi = {
   SEND_EMAIL_AUTH_REGISTER: `${env.CMS_URL}/api/mailer/auth-register`,
   SEND_EMAIL_RESET_PASSWORD: `${env.CMS_URL}/api/mailer/reset-password`,
   SEND_EMAIL_TEST: `${env.CMS_URL}/api/mailer/test`,
+  CUSTOMERS: `${env.CMS_URL}/api/customers`,
+  ACCOUNTS: `${env.CMS_URL}/api/accounts`,
+  ACCOUNT_STATES: `${env.CMS_URL}/api/account-states`,
+  PRODUCTS: `${env.CMS_URL}/api/products`,
+  SALES: `${env.CMS_URL}/api/sales`,
+  PROMOS: `${env.CMS_URL}/api/promos`,
+  EVENTS: `${env.CMS_URL}/api/events`,
 } as const;
 
 // Type-safe config object

@@ -1,7 +1,7 @@
 'use client';
 
 import FormError from '@/components/ui/form-error';
-import { useRegisterForm } from '@/hooks/useRegisterForm';
+import { useRegisterForm } from '@/hooks/auth/useRegisterForm';
 import Link from 'next/link';
 
 export default function Register() {

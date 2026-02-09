@@ -1,7 +1,7 @@
 'use client';
 
 import FormError from '@/components/ui/form-error';
-import { useLoginForm } from '@/hooks/useLoginForm';
+import { useLoginForm } from '@/hooks/auth/useLoginForm';
 import Link from 'next/link';
 
 export default function Login() {

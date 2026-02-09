@@ -12,6 +12,14 @@ import { jwtName, userDataVerifyCodeName } from '@/lib/jwt';
 import { cacheLife, cacheTag } from 'next/cache';
 
 /**
+ * Función que obtiene el token JWT para validar la autenticidad del usuario
+ */
+export async function getAuthToken(): Promise<string | undefined> {
+  const cookieStore = await cookies();
+  return cookieStore.get(jwtName)?.value;
+}
+
+/**
  * Función cacheada que obtiene el usuario desde el CMS.
  * Se cachea por token para evitar llamadas repetidas al CMS.
  * Usa el perfil 'hours' (revalidate cada hora, stale por 5 minutos).

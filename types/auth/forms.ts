@@ -8,38 +8,21 @@ import {
   VerifyUserData,
 } from './types';
 import { ValidationErrors, CmsErrors } from './errors';
+import {
+  FormState,
+  CmsErrorMessages,
+  UseFormConfig,
+} from '@/types/shared/forms';
 
-/**
- * Estados de formularios (Server Actions responses)
- */
-
-export interface FormState<T = unknown> {
-  success?: boolean;
-  message?: string;
-  data?: T;
-  validationErrors?: ValidationErrors;
-  cmsErrors?: CmsErrors;
-}
-
-/**
- * Mapeo de códigos HTTP a mensajes de error personalizados
- */
-export type CmsErrorMessages = Partial<Record<number, string>> & {
-  default?: string;
-};
+// Re-exportar tipos compartidos para compatibilidad
+export type { FormState, CmsErrorMessages };
 
 /**
  * Configuración para el hook useAuthForm
+ * Extiende la configuración base de formularios
  */
-export interface UseAuthFormConfig<T extends FormState = FormState> {
-  action: (formData: FormData) => T | Promise<T>;
-  onSuccess?: (message: string) => Promise<void> | void;
-  /** Retorna true si ya manejó el toast, false/void para que useAuthForm muestre el toast */
-  onCmsError?: (error: CmsErrors) => boolean | void | Promise<boolean | void>;
-  successMessage?: string;
-  validationErrorMessage?: string;
-  cmsErrorMessages?: CmsErrorMessages;
-}
+export type UseAuthFormConfig<T extends FormState = FormState> =
+  UseFormConfig<T>;
 
 /**
  * LoginFormState: Se autentica y guarda JWT + usuario
@@ -55,7 +38,7 @@ export interface LoginFormState extends FormState<LoginData> {
  * Flujo: Register → Cuenta creada → Redirige a login
  */
 export interface RegisterFormState extends FormState<RegisterData> {
-  // ❌ Sin token ni user aquí
+  // Sin token ni user aquí
   // El usuario debe ir a login después
   accountCreated?: boolean;
 }
@@ -69,15 +52,13 @@ export interface ResetPasswordFormState extends FormState<ResetPasswordData> {}
  * ChangePasswordAuthenticatedFormState: Cambia contraseña para usuario autenticado
  * Flujo: User logged in → Change Password → Contraseña cambiada
  */
-export interface ChangePasswordAuthenticatedFormState
-  extends FormState<ChangePasswordAuthenticatedData> {}
+export interface ChangePasswordAuthenticatedFormState extends FormState<ChangePasswordAuthenticatedData> {}
 
 /**
  * NewPasswordFormState: Restablece contraseña usando código de email
  * Flujo: Forgot Password → Email con código → Ingresar nueva contraseña → Login
  */
-export interface ChangePasswordFormState
-  extends FormState<ChangePasswordData> {}
+export interface ChangePasswordFormState extends FormState<ChangePasswordData> {}
 
 /** VerifyUserFormState: Verifica código enviado por email
  * Flujo: Register → Email con código → Verificar código

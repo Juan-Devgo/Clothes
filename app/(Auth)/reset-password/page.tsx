@@ -1,6 +1,6 @@
 'use client';
 
-import { useResetPasswordForm } from '@/hooks/useResetPasswordForm';
+import { useResetPasswordForm } from '@/hooks/auth/useResetPasswordForm';
 
 export default function ResetPassword() {
   const { formState, handleSubmit, isPending } = useResetPasswordForm();

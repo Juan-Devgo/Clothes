@@ -7,7 +7,7 @@ import { routes } from './lib/paths';
  * El middleware solo verifica si existe el token, no lo valida contra el CMS
  * La validación real se hace en las Server Actions cuando se necesita
  */
-const protectedRoutes = [routes.DASHBOARD];
+const protectedRoutes = [routes.CONTROL_PANEL];
 
 /**
  * Rutas públicas de autenticación
@@ -17,13 +17,13 @@ const authRoutes = [routes.LOGIN, routes.REGISTER, routes.RESET_PASSWORD];
 
 function isProtectedRoute(pathname: string): boolean {
   return protectedRoutes.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
   );
 }
 
 function isAuthRoute(pathname: string): boolean {
   return authRoutes.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
   );
 }
 
@@ -38,9 +38,9 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Si es ruta de auth y ya tiene token → redirigir al dashboard
+  // Si es ruta de auth y ya tiene token → redirigir al control panel
   if (isAuthRoute(pathname) && token) {
-    return NextResponse.redirect(new URL(routes.DASHBOARD, request.url));
+    return NextResponse.redirect(new URL(routes.CONTROL_PANEL, request.url));
   }
 
   return NextResponse.next();
