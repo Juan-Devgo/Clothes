@@ -1,9 +1,8 @@
 import { env as cmsEnv } from '@/lib/cms';
 import { cmsApi } from '@/lib/paths';
 import { LoginData, RegisterData, User } from '@/types/auth/types';
+import { Media } from '@/types/domain/types';
 import { cmsLogger } from '@/lib/logger';
-import { jwtName } from '@/lib/jwt';
-import { cookies } from 'next/headers';
 import { getAuthToken } from './auth';
 import { ContentResponse } from '@/types';
 
@@ -429,5 +428,108 @@ export async function deleteContent(
   } catch (error) {
     cmsLogger.error({ url, error }, 'CMS: Error eliminando contenido');
     throw error;
+  }
+}
+
+/**
+ * Sube un archivo multimedia al CMS (Strapi Upload API)
+ * Usa multipart/form-data para enviar el archivo
+ *
+ * @param file - Archivo a subir (File o Blob)
+ * @param fileName - Nombre opcional del archivo
+ * @returns Respuesta con los datos del archivo subido (id, url, etc.)
+ *
+ * @example
+ * const result = await uploadMedia(file);
+ * if (result.success && result.data) {
+ *   // result.data.id → ID del archivo para enlazar con un registro
+ *   // result.data.url → URL relativa del archivo
+ * }
+ */
+export async function uploadMedia(
+  file: File | Blob,
+  fileName?: string,
+): Promise<ContentResponse<Media>> {
+  const authToken = await getAuthToken();
+
+  if (!authToken) {
+    cmsLogger.warn('CMS: Token no encontrado - No autorizado (upload)');
+    return {
+      success: false,
+      status: 401,
+      message: 'No autorizado - Token no encontrado',
+    };
+  }
+
+  const finalFileName =
+    fileName || (file instanceof File ? file.name : 'upload');
+
+  cmsLogger.info(
+    { fileName: finalFileName },
+    'CMS: Subiendo archivo multimedia',
+  );
+
+  try {
+    // Convertir a ArrayBuffer → Blob para asegurar que los datos binarios
+    // se manejan correctamente en el servidor (Node.js)
+    const arrayBuffer = await file.arrayBuffer();
+    const blob = new Blob([arrayBuffer], {
+      type: file.type || 'application/octet-stream',
+    });
+
+    const formData = new FormData();
+    formData.append('files', blob, finalFileName);
+
+    // Metadata del archivo (recomendado por Strapi)
+    formData.append(
+      'fileInfo',
+      JSON.stringify({
+        name: finalFileName,
+        alternativeText: finalFileName,
+      }),
+    );
+
+    const response = await fetch(cmsApi.UPLOAD, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        // No incluir Content-Type: fetch lo establece automáticamente
+        // con el boundary correcto para multipart/form-data
+      },
+      body: formData,
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      cmsLogger.warn(
+        { status: response.status, responseData },
+        'CMS: Error subiendo archivo',
+      );
+      return {
+        success: false,
+        status: response.status,
+        message: responseData?.error?.message || response.statusText,
+      };
+    }
+
+    // Strapi retorna un array de archivos subidos
+    const uploadedFile = Array.isArray(responseData)
+      ? responseData[0]
+      : responseData;
+
+    cmsLogger.info(
+      { fileId: uploadedFile?.id },
+      'CMS: Archivo subido exitosamente',
+    );
+
+    return { success: true, data: uploadedFile };
+  } catch (error) {
+    cmsLogger.error({ error }, 'CMS: Error subiendo archivo');
+    return {
+      success: false,
+      status: 500,
+      message: 'Error de conexión al subir archivo',
+    };
   }
 }

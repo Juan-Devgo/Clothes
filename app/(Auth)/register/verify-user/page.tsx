@@ -1,7 +1,7 @@
 import { getUserDataVerifyCode } from '@/service/auth';
 import { redirect } from 'next/navigation';
 import { routes } from '@/lib/paths';
-import CodeInputForm from '@/components/code-input-form';
+import CodeInputForm from '@/components/auth-forms/code-input-form';
 
 export default async function VerifyUser() {
   const userData = await getUserDataVerifyCode('auth-register');

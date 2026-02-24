@@ -1,4 +1,4 @@
-import CodeInputForm from '@/components/code-input-form';
+import CodeInputForm from '@/components/auth-forms/code-input-form';
 import { routes } from '@/lib/paths';
 import { getUserDataVerifyCode } from '@/service/auth';
 import { redirect } from 'next/navigation';

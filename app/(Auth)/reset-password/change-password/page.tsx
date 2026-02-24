@@ -1,4 +1,4 @@
-import ChangePasswordForm from '@/components/change-password-form';
+import ChangePasswordForm from '@/components/auth-forms/change-password-form';
 import { routes } from '@/lib/paths';
 import { getUserDataVerifyCode } from '@/service/auth';
 import { redirect } from 'next/navigation';

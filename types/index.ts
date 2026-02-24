@@ -9,3 +9,4 @@ export * from './table';
 export * from './domain';
 export * from './out';
 export * from './customer-view';
+export * from './product-view';

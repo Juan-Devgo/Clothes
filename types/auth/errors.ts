@@ -2,12 +2,8 @@
  * Tipos de errores para autenticación
  */
 
-export interface CmsErrors {
-  status?: number;
-  name?: string;
-  message?: string;
-  details?: Record<string, string[]>;
-}
+// CmsErrors se importa desde shared/forms (fuente canónica)
+export type { CmsErrors } from '@/types/shared/forms';
 
 export interface ValidationErrors {
   identifier?: string[];

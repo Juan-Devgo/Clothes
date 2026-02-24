@@ -1,7 +1,6 @@
 /**
- * Índice de tipos de autenticación
+ * Índice de tipos de product-view
  * Re-exporta todo para fácil acceso
- * Nota: errors.ts no se re-exporta para evitar colisión con shared/forms
  */
 
 export * from './schemas';

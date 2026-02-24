@@ -47,6 +47,14 @@ export interface AccountState {
   description: string;
 }
 
+export interface Media {
+  id: string;
+  documentId?: string;
+  name: string;
+  alternativeText?: string;
+  url: string;
+}
+
 export interface Product {
   id: string;
   documentId?: string;
@@ -55,7 +63,7 @@ export interface Product {
   currency: string;
   description: string;
   stock: number;
-  photo_url?: string;
+  photo?: Media;
   category: ProductCategory;
   subcategory: ProductSubcategory;
   promos: Promo[];
@@ -67,17 +75,18 @@ export interface Product {
 export interface ProductDetail {
   id: string;
   documentId?: string;
-  product?: Product | string;
+  product?: Product;
   quantity: number;
   state: ProductDetailState;
-  sale?: Sale | string;
-  account?: Account | string;
+  sale?: Sale;
+  account?: Account;
   created_at: string;
   updated_at: string;
 }
 
 export interface ProductDetailState {
   id: string;
+  documentId?: string;
   name: string;
   label: string;
   description: string;
@@ -85,6 +94,7 @@ export interface ProductDetailState {
 
 export interface ProductCategory {
   id: string;
+  documentId?: string;
   name: string;
   label: string;
   description: string;
@@ -92,6 +102,7 @@ export interface ProductCategory {
 
 export interface ProductSubcategory {
   id: string;
+  documentId?: string;
   name: string;
   label: string;
   description: string;

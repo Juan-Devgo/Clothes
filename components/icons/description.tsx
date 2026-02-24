@@ -1,19 +1,15 @@
-interface CheckedIconProps {
-  className?: string;
-}
-
-export default function CheckedIcon({ className }: CheckedIconProps) {
+export default function DescriptionIcon() {
   return (
     <svg
       fill="none"
       stroke="currentColor"
-      className={className || 'w-6 h-6'}
+      className="w-4 h-4"
       viewBox="0 0 24 24"
     >
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
-        d="m5 13 4 4L19 7"
+        d="M4 6h16M4 12h16M4 18h7"
         strokeWidth={2}
       />
     </svg>

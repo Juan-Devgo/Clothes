@@ -57,13 +57,17 @@ export default function Login() {
           <p className="text-sm text-gray-500">
             ¿Olvidaste tu contraseña?{' '}
             <Link href="/reset-password">
-              <strong>Reestablecer Contraseña</strong>
+              <strong className="text-[#f5A2C0] hover:text-[#FFCADD] transition-colors duration-300">
+                Reestablecer Contraseña
+              </strong>
             </Link>
           </p>
           <p className="text-sm text-gray-500 mt-2">
             ¿No tienes una cuenta?{' '}
             <Link href="/register">
-              <strong>Regístrate</strong>
+              <strong className="text-[#f5A2C0] hover:text-[#FFCADD] transition-colors duration-300">
+                Regístrate
+              </strong>
             </Link>
           </p>
         </div>

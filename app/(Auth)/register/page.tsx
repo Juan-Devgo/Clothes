@@ -79,7 +79,9 @@ export default function Register() {
           <p className="text-sm text-gray-500">
             ¿Ya tienes una cuenta?{' '}
             <Link href="/login">
-              <strong>Inicia Sesión</strong>
+              <strong className="text-[#f5A2C0] hover:text-[#FFCADD] transition-colors duration-300">
+                Inicia Sesión
+              </strong>
             </Link>
           </p>
         </div>

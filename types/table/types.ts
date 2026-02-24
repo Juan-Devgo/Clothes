@@ -1,5 +1,5 @@
 export interface Column {
-  name: string;
+  name: React.ReactNode;
   selector?: (row: any) => any;
   cell?: (row: any) => React.ReactNode;
   sortable?: boolean;
