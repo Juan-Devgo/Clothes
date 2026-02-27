@@ -135,8 +135,19 @@ export async function getSubcategoriesAction(): Promise<
   ProductSubcategory[] | null
 > {
   try {
+    const query = qs.stringify(
+      {
+        populate: {
+          product_category: {
+            fields: ['documentId', 'name', 'label'],
+          },
+        },
+      },
+      { encodeValuesOnly: true },
+    );
+
     const result = await getContent<ProductSubcategory[]>(
-      cmsApi.PRODUCT_SUBCATEGORIES,
+      `${cmsApi.PRODUCT_SUBCATEGORIES}?${query}`,
     );
 
     if (!result.success) {
@@ -303,12 +314,17 @@ export async function createProductAction(
         { error: result.message },
         'Action: Error al crear el producto en el CMS',
       );
+
+      const isUniqueError = result.message?.toLowerCase().includes('unique');
+
       return {
         success: false,
-        message: 'Error al crear el producto.',
+        message: isUniqueError
+          ? 'Ya existe un producto con ese nombre. Por favor use uno diferente.'
+          : 'Error al crear el producto.',
         data: fields,
         validationErrors: {},
-        cmsErrors: { status: 500, message: result.message },
+        cmsErrors: { status: result.status, message: result.message },
       };
     }
 
@@ -513,12 +529,17 @@ export async function updateProductAction(
         { error: result.message },
         'Action: Error al actualizar el producto en el CMS',
       );
+
+      const isUniqueError = result.message?.toLowerCase().includes('unique');
+
       return {
         success: false,
-        message: 'Error al actualizar el producto.',
+        message: isUniqueError
+          ? 'Ya existe un producto con ese nombre. Por favor use uno diferente.'
+          : 'Error al actualizar el producto.',
         data: fields,
         validationErrors: {},
-        cmsErrors: { status: 500, message: result.message },
+        cmsErrors: { status: result.status, message: result.message },
       };
     }
 
@@ -600,7 +621,7 @@ export async function deleteProductAction(
         message: 'Error al eliminar el producto.',
         data: fields,
         validationErrors: {},
-        cmsErrors: { status: 500, message: result.message },
+        cmsErrors: { status: result.status, message: result.message },
       };
     }
 

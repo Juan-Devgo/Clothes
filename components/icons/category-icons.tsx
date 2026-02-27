@@ -25,44 +25,13 @@ export function BeltsIcon({ className }: CategoryIconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="64"
-      height="64"
-      viewBox="0 0 64 64"
+      width="24"
+      height="24"
+      fill="currentColor"
       className={className || 'w-6 h-6'}
+      viewBox="0 -960 960 960"
     >
-      <rect
-        width="52"
-        height="12"
-        x="6"
-        y="26"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        rx="6"
-      />
-      <rect width="12" height="16" x="32" y="24" fill="none" rx="2" />
-      <rect
-        width="16"
-        height="20"
-        x="30"
-        y="22"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        rx="3"
-      />
-      <rect
-        width="8"
-        height="12"
-        x="34"
-        y="26"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        rx="2"
-      />
-      <circle cx="14" cy="32" r="2" fill="currentColor" />
-      <circle cx="20" cy="32" r="2" fill="currentColor" />
+      <path d="M155-155q-35-35-35-85v-400h80v400q0 17 11.5 28.5T240-200t28.5-11.5T280-240v-480q0-50 35-85t85-35 85 35 35 85v480q0 17 11.5 28.5T560-200t28.5-11.5T600-240v-480q0-50 35-85t85-35 85 35 35 85v400h-80v-400q0-17-11.5-28.5T720-760t-28.5 11.5T680-720v480q0 50-35 85t-85 35-85-35-35-85v-480q0-17-11.5-28.5T400-760t-28.5 11.5T360-720v480q0 50-35 85t-85 35-85-35" />
     </svg>
   );
 }

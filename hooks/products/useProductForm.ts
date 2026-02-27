@@ -9,6 +9,8 @@ import { FormState, CmsErrors, CmsErrorMessages } from '@/types/shared/forms';
  * Mensajes de error compartidos para errores del CMS
  */
 const SHARED_CMS_ERROR_MESSAGES: Record<number, string> = {
+  403: 'No autorizado para esta operación.',
+  404: 'No se encontró la información con la que estabas trabajando, recarga la página.',
   429: 'Ha realizado muchos intentos, intente más tarde.',
   500: 'Error de conexión con el servidor.',
 };
@@ -84,6 +86,14 @@ export function useProductForm<T extends FormState = FormState>({
 
           // Errores del CMS
           if (result.cmsErrors) {
+            // Sesión expirada: redirigir al login
+            if (result.cmsErrors.status === 401) {
+              toast.error('Su sesión ha expirado. Inicie sesión nuevamente.');
+              router.push('/login');
+              resolve();
+              return;
+            }
+
             const handled = await onCmsError?.(result.cmsErrors);
 
             // Si onCmsError retornó true, ya manejó el toast

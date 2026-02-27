@@ -1,18 +1,17 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { Product, ProductCategory, ProductSubcategory } from '@/types';
 import { useCreateProduct, useUpdateProduct } from '@/hooks/products';
 import { cmsApi } from '@/lib/paths';
 import FormError from '../ui/form-error';
+import ImageUpload from '../ui/image-upload';
 import TagIcon from '../icons/tag';
 import DollarIcon from '../icons/dollar';
 import BoxIcon from '../icons/box';
 import DescriptionIcon from '../icons/description';
 import CategoryIcon from '../icons/category';
 import CheckedIcon from '../icons/checked';
-import ImageIcon from '../icons/image';
-import { CameraIcon } from '../icons/camera';
 
 interface EditProductFormProps {
   type: 'edit' | 'create';
@@ -60,57 +59,27 @@ export default function EditProductForm({
   const buttonHover = isCreate ? 'hover:bg-green-700' : 'hover:bg-blue-700';
   const buttonText = isCreate ? 'Crear Producto' : 'Guardar Cambios';
 
-  // Estado para la vista previa de la imagen
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   // URL de la foto existente del producto (si existe)
   const existingPhotoUrl = product.photo?.url
     ? `${cmsApi.BASE_URL}${product.photo.url}`
     : null;
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        setImagePreview(null);
-        return;
-      }
-      const url = URL.createObjectURL(file);
-      setImagePreview(url);
-    } else {
-      setImagePreview(null);
-    }
-  };
+  // Estado para la categoría seleccionada (para filtrar subcategorías)
+  const initialCategoryId =
+    typeof product.category === 'object'
+      ? product.category?.documentId
+      : product.category || '';
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
+    initialCategoryId || '',
+  );
 
-  const handleRemoveImage = () => {
-    setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const handleTakePhoto = () => {
-    // Crear un input temporal con capture para forzar apertura de cámara
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.setAttribute('capture', 'environment');
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
-        setImagePreview(url);
-        // Copiar al input principal para enviar en el FormData
-        if (fileInputRef.current) {
-          const dt = new DataTransfer();
-          dt.items.add(file);
-          fileInputRef.current.files = dt.files;
-        }
-      }
-    };
-    input.click();
-  };
+  // Subcategorías filtradas por la categoría seleccionada
+  const filteredSubcategories = useMemo(() => {
+    if (!selectedCategoryId) return [];
+    return subcategories.filter(
+      (sub) => sub.product_category?.documentId === selectedCategoryId,
+    );
+  }, [subcategories, selectedCategoryId]);
 
   return (
     <form
@@ -270,6 +239,7 @@ export default function EditProductForm({
                   : product.category || ''
               }
               disabled={isPending}
+              onChange={(e) => setSelectedCategoryId(e.target.value)}
               className={`w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 ${focusRing} focus:border-transparent focus:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <option value="">Selecciona una categoría</option>
@@ -307,14 +277,18 @@ export default function EditProductForm({
               className={`w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 ${focusRing} focus:border-transparent focus:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <option value="">Selecciona una subcategoría</option>
-              {subcategories.map((subcategory) => (
-                <option
-                  key={subcategory.documentId}
-                  value={subcategory.documentId}
-                >
-                  {subcategory.label}
-                </option>
-              ))}
+              {filteredSubcategories.length === 0 && selectedCategoryId ? (
+                <option disabled>No hay subcategorías asociadas</option>
+              ) : (
+                filteredSubcategories.map((subcategory) => (
+                  <option
+                    key={subcategory.documentId}
+                    value={subcategory.documentId}
+                  >
+                    {subcategory.label}
+                  </option>
+                ))
+              )}
             </select>
           </div>
           <FormError errors={formState?.validationErrors?.subcategory} />
@@ -329,93 +303,13 @@ export default function EditProductForm({
             Foto del producto
           </label>
 
-          <div className="flex flex-col gap-3">
-            {/* Vista previa */}
-            <div className="w-full h-36 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50">
-              {imagePreview ? (
-                <img
-                  src={imagePreview}
-                  alt="Vista previa"
-                  className="w-full h-full object-contain rounded-lg"
-                />
-              ) : existingPhotoUrl && !isCreate ? (
-                <img
-                  src={existingPhotoUrl}
-                  alt={product.photo?.alternativeText || product.name}
-                  className="w-full h-full object-contain rounded-lg"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                    (e.target as HTMLImageElement)
-                      .parentElement!.querySelector('.fallback-icon')
-                      ?.classList.remove('hidden');
-                  }}
-                />
-              ) : (
-                <span className="text-gray-400">
-                  <ImageIcon className="w-10 h-10" />
-                </span>
-              )}
-              {/* Ícono fallback oculto */}
-              {existingPhotoUrl && !isCreate && !imagePreview && (
-                <span className="fallback-icon hidden text-gray-400">
-                  <ImageIcon className="w-10 h-10" />
-                </span>
-              )}
-            </div>
-
-            {/* Controles de carga */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              id="photo"
-              name="photo"
-              accept="image/*"
-              disabled={isPending}
-              onChange={handleImageChange}
-              className="hidden"
-            />
-
-            <div className="flex gap-2 flex-wrap items-center">
-              {/* Botón subir archivo */}
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => fileInputRef.current?.click()}
-                className="flex-1 min-w-0 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ImageIcon className="w-4 h-4" />
-                Subir imagen
-              </button>
-
-              {/* Botón tomar foto (dispara cámara en móvil) */}
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={handleTakePhoto}
-                className="flex-1 min-w-0 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <CameraIcon />
-                Tomar foto
-              </button>
-
-              {/* Botón quitar imagen seleccionada */}
-              {imagePreview && (
-                <button
-                  type="button"
-                  onClick={handleRemoveImage}
-                  disabled={isPending}
-                  className="flex-1 min-w-0 px-3 py-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg cursor-pointer hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  ✕ Quitar
-                </button>
-              )}
-
-              <p className="text-xs text-gray-400 w-full text-center">
-                JPG, PNG o WebP. Máximo 5MB.
-              </p>
-            </div>
-          </div>
-          <FormError errors={formState?.validationErrors?.photo} />
+          <ImageUpload
+            name="photo"
+            existingImageUrl={!isCreate ? existingPhotoUrl : null}
+            existingImageAlt={product.photo?.alternativeText || product.name}
+            disabled={isPending}
+            serverErrors={formState?.validationErrors?.photo}
+          />
         </div>
 
         {/* Descripción */}

@@ -101,12 +101,17 @@ export async function createCustomerAction(
         { error: result.message },
         'Action: Error al crear el cliente en el CMS',
       );
+
+      const isUniqueError = result.message?.toLowerCase().includes('unique');
+
       return {
         success: false,
-        message: 'Error al crear el cliente.',
+        message: isUniqueError
+          ? 'Ya existe un cliente con ese correo electrónico o teléfono. Verifique los datos.'
+          : 'Error al crear el cliente.',
         data: fields,
         validationErrors: {},
-        cmsErrors: { status: 500, message: result.message },
+        cmsErrors: { status: result.status, message: result.message },
       };
     }
 
@@ -227,12 +232,17 @@ export async function updateCustomerAction(
         { error: result.message },
         'Action: Error al actualizar el cliente en el CMS',
       );
+
+      const isUniqueError = result.message?.toLowerCase().includes('unique');
+
       return {
         success: false,
-        message: 'Error al actualizar el cliente.',
+        message: isUniqueError
+          ? 'Ya existe un cliente con ese correo electrónico o teléfono. Verifique los datos.'
+          : 'Error al actualizar el cliente.',
         data: fields,
         validationErrors: {},
-        cmsErrors: { status: 500, message: result.message },
+        cmsErrors: { status: result.status, message: result.message },
       };
     }
 
@@ -364,7 +374,7 @@ export async function deleteCustomerAction(
         message: 'Error al eliminar el cliente.',
         data: fields,
         validationErrors: {},
-        cmsErrors: { status: 500, message: result.message },
+        cmsErrors: { status: result.status, message: result.message },
       };
     }
 

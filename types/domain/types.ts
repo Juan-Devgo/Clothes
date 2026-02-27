@@ -106,6 +106,7 @@ export interface ProductSubcategory {
   name: string;
   label: string;
   description: string;
+  product_category?: ProductCategory;
 }
 
 export interface ProductState {
