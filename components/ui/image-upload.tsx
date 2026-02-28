@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import ImageIcon from '../icons/image';
 import { CameraIcon } from '../icons/camera';
+import CameraModal from '../camera/camera-modal';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -28,6 +29,7 @@ export default function ImageUpload({
 }: ImageUploadProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [cameraModalOpen, setCameraModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = (file: File): boolean => {
@@ -68,25 +70,23 @@ export default function ImageUpload({
     }
   };
 
-  const handleTakePhoto = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.setAttribute('capture', 'environment');
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (file) {
-        if (!validateFile(file)) return;
-        const url = URL.createObjectURL(file);
-        setImagePreview(url);
+  const handleCameraConfirm = (photoDataUrl: string) => {
+    setImagePreview(photoDataUrl);
+    setImageError(null);
+
+    // Convertir el data URL a File y asignarlo al input
+    fetch(photoDataUrl)
+      .then((res) => res.blob())
+      .then((blob) => {
+        const file = new File([blob], 'camera-photo.png', {
+          type: 'image/png',
+        });
         if (fileInputRef.current) {
           const dt = new DataTransfer();
           dt.items.add(file);
           fileInputRef.current.files = dt.files;
         }
-      }
-    };
-    input.click();
+      });
   };
 
   return (
@@ -151,7 +151,7 @@ export default function ImageUpload({
         <button
           type="button"
           disabled={disabled}
-          onClick={handleTakePhoto}
+          onClick={() => setCameraModalOpen(true)}
           className="flex-1 min-w-0 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <CameraIcon />
@@ -165,7 +165,7 @@ export default function ImageUpload({
             disabled={disabled}
             className="flex-1 min-w-0 px-3 py-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg cursor-pointer hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            ✕ Quitar
+            <span className="text-lg">&times;</span> Quitar
           </button>
         )}
 
@@ -176,14 +176,14 @@ export default function ImageUpload({
 
       {/* Error de validación client-side */}
       {imageError && (
-        <div className="flex items-center justify-between text-sm text-red-800">
+        <div className="flex items-center justify-center text-sm text-red-800">
           <span>{imageError}</span>
           <button
             type="button"
             onClick={() => setImageError(null)}
-            className="text-red-500 hover:text-red-700 text-xs ml-2"
+            className="text-red-500 hover:text-red-700 text-2xl ml-2 cursor-pointer"
           >
-            ✕
+            &times;
           </button>
         </div>
       )}
@@ -194,6 +194,13 @@ export default function ImageUpload({
           {err}
         </div>
       ))}
+
+      {/* Modal de cámara */}
+      <CameraModal
+        isOpen={cameraModalOpen}
+        onClose={() => setCameraModalOpen(false)}
+        onConfirm={handleCameraConfirm}
+      />
     </div>
   );
 }
