@@ -1,7 +1,7 @@
 import { env as cmsEnv } from '@/lib/cms';
 import { cmsApi } from '@/lib/paths';
 import { LoginData, RegisterData, User } from '@/types/auth/types';
-import { Media } from '@/types/domain/types';
+import { Media } from '@/types';
 import { cmsLogger } from '@/lib/logger';
 import { getAuthToken } from './auth';
 import { ContentResponse } from '@/types';
@@ -429,6 +429,150 @@ export async function deleteContent(
     cmsLogger.error({ url, error }, 'CMS: Error eliminando contenido');
     throw error;
   }
+}
+
+/**
+ * Resultado individual de una operación bulk
+ */
+export interface BulkOperationItemResult {
+  index: number;
+  success: boolean;
+  message?: string;
+  status?: number;
+}
+
+/**
+ * Resultado general de una operación bulk
+ */
+export interface BulkOperationResult {
+  totalRequested: number;
+  successCount: number;
+  failedCount: number;
+  results: BulkOperationItemResult[];
+}
+
+/**
+ * Crea múltiples registros de contenido en el CMS iterando sobre cada uno.
+ * Strapi REST API no soporta bulk create nativo, por lo que se realiza
+ * una petición POST por cada registro.
+ *
+ * @param url - URL base del content type (ej: cmsApi.CUSTOMERS)
+ * @param items - Array de objetos con los datos a crear ({ data: ... })
+ * @returns Resultado con conteos de éxito/fallo y detalles por registro
+ */
+export async function postContentBulk(
+  url: string,
+  items: { data: unknown }[],
+): Promise<BulkOperationResult> {
+  cmsLogger.info(
+    { url, count: items.length },
+    'CMS: Iniciando creación bulk de contenido',
+  );
+
+  const results: BulkOperationItemResult[] = [];
+  let successCount = 0;
+  let failedCount = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    try {
+      const result = await postContent(url, items[i]);
+      if (result.success) {
+        successCount++;
+        results.push({ index: i, success: true });
+      } else {
+        failedCount++;
+        results.push({
+          index: i,
+          success: false,
+          status: result.status,
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      failedCount++;
+      results.push({
+        index: i,
+        success: false,
+        status: 500,
+        message:
+          error instanceof Error ? error.message : 'Error de conexión',
+      });
+    }
+  }
+
+  cmsLogger.info(
+    { url, successCount, failedCount },
+    'CMS: Creación bulk completada',
+  );
+
+  return {
+    totalRequested: items.length,
+    successCount,
+    failedCount,
+    results,
+  };
+}
+
+/**
+ * Elimina múltiples registros de contenido en el CMS iterando sobre cada uno.
+ * Strapi REST API no soporta bulk delete nativo, por lo que se realiza
+ * una petición DELETE por cada registro.
+ *
+ * @param url - URL base del content type (ej: cmsApi.CUSTOMERS)
+ * @param documentIds - Array de documentIds a eliminar
+ * @returns Resultado con conteos de éxito/fallo y detalles por registro
+ */
+export async function deleteContentBulk(
+  url: string,
+  documentIds: string[],
+): Promise<BulkOperationResult> {
+  cmsLogger.info(
+    { url, count: documentIds.length },
+    'CMS: Iniciando eliminación bulk de contenido',
+  );
+
+  const results: BulkOperationItemResult[] = [];
+  let successCount = 0;
+  let failedCount = 0;
+
+  for (let i = 0; i < documentIds.length; i++) {
+    try {
+      const result = await deleteContent(`${url}/${documentIds[i]}`);
+      if (result.success) {
+        successCount++;
+        results.push({ index: i, success: true });
+      } else {
+        failedCount++;
+        results.push({
+          index: i,
+          success: false,
+          status: result.status,
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      failedCount++;
+      results.push({
+        index: i,
+        success: false,
+        status: 500,
+        message:
+          error instanceof Error ? error.message : 'Error de conexión',
+      });
+    }
+  }
+
+  cmsLogger.info(
+    { url, successCount, failedCount },
+    'CMS: Eliminación bulk completada',
+  );
+
+  return {
+    totalRequested: documentIds.length,
+    successCount,
+    failedCount,
+    results,
+  };
 }
 
 /**

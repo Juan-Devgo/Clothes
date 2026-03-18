@@ -3,3 +3,7 @@ export { useCreateProduct } from './useCreateProduct';
 export { useUpdateProduct } from './useUpdateProduct';
 export { useDeleteProduct } from './useDeleteProduct';
 export { useGetProductEnums } from './useGetProductEnums';
+export { useBulkUploadProducts } from './useBulkUploadProducts';
+export { useBulkDownloadProducts } from './useBulkDownloadProducts';
+export { useBulkDeleteProducts } from './useBulkDeleteProducts';
+export { useBulkEditProducts } from './useBulkEditProducts';

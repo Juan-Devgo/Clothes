@@ -1,6 +1,6 @@
 import { getProductsAction } from '@/actions/products';
 import { ProductTableProvider } from '@/components/providers/product-table-provider';
-import ProductsTable from '@/components/tables/products-table';
+import ProductsTable from '@/components/products/tables/products-table';
 import { Product } from '@/types';
 
 export default async function Products() {

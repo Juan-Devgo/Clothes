@@ -1,9 +1,10 @@
-'use client';
+"use client";
 
-import { useState, useRef } from 'react';
-import ImageIcon from '../icons/image';
-import { CameraIcon } from '../icons/camera';
-import CameraModal from '../camera/camera-modal';
+import { useState, useRef } from "react";
+import Image from "next/image";
+import ImageIcon from "../icons/image";
+import { CameraIcon } from "../icons/camera";
+import CameraModal from "./camera-modal";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -29,18 +30,19 @@ export default function ImageUpload({
 }: ImageUploadProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [showFallback, setShowFallback] = useState(false);
   const [cameraModalOpen, setCameraModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = (file: File): boolean => {
-    if (!file.type.startsWith('image/')) {
+    if (!file.type.startsWith("image/")) {
       setImagePreview(null);
-      setImageError('El archivo debe ser una imagen (JPG, PNG, WebP).');
+      setImageError("El archivo debe ser una imagen (JPG, PNG, WebP).");
       return false;
     }
     if (file.size >= MAX_FILE_SIZE) {
       setImagePreview(null);
-      setImageError('La imagen no debe superar los 5MB.');
+      setImageError("La imagen no debe superar los 5MB.");
       return false;
     }
     setImageError(null);
@@ -51,7 +53,7 @@ export default function ImageUpload({
     const file = e.target.files?.[0];
     if (file) {
       if (!validateFile(file)) {
-        e.target.value = '';
+        e.target.value = "";
         return;
       }
       const url = URL.createObjectURL(file);
@@ -66,7 +68,7 @@ export default function ImageUpload({
     setImagePreview(null);
     setImageError(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = "";
     }
   };
 
@@ -74,12 +76,11 @@ export default function ImageUpload({
     setImagePreview(photoDataUrl);
     setImageError(null);
 
-    // Convertir el data URL a File y asignarlo al input
     fetch(photoDataUrl)
       .then((res) => res.blob())
       .then((blob) => {
-        const file = new File([blob], 'camera-photo.png', {
-          type: 'image/png',
+        const file = new File([blob], "camera-photo.png", {
+          type: "image/png",
         });
         if (fileInputRef.current) {
           const dt = new DataTransfer();
@@ -92,61 +93,47 @@ export default function ImageUpload({
   return (
     <div className="flex flex-col gap-3">
       {/* Vista previa */}
-      <div className="w-full h-36 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50">
+      <div className="relative w-full h-36 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50">
         {imagePreview ? (
-          <img
+          <Image
             src={imagePreview}
             alt="Vista previa"
-            className="w-full h-full object-contain rounded-lg"
+            fill
+            unoptimized
+            className="object-contain rounded-lg"
           />
-        ) : existingImageUrl ? (
-          <img
+        ) : existingImageUrl && !showFallback ? (
+          <Image
             src={existingImageUrl}
-            alt={existingImageAlt || 'Imagen actual'}
-            className="w-full h-full object-contain rounded-lg"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-              (e.target as HTMLImageElement)
-                .parentElement!.querySelector('.fallback-icon')
-                ?.classList.remove('hidden');
-            }}
+            alt={existingImageAlt || "Imagen actual"}
+            fill
+            className="object-contain rounded-lg"
+            onError={() => setShowFallback(true)}
           />
         ) : (
           <span className="text-gray-400">
             <ImageIcon className="w-10 h-10" />
           </span>
         )}
-        {/* Ícono fallback oculto */}
-        {existingImageUrl && !imagePreview && (
-          <span className="fallback-icon hidden text-gray-400">
-            <ImageIcon className="w-10 h-10" />
-          </span>
-        )}
       </div>
-
-      {/* Input oculto */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        id={name}
-        name={name}
-        accept="image/*"
-        disabled={disabled}
-        onChange={handleImageChange}
-        className="hidden"
-      />
 
       {/* Controles */}
       <div className="flex gap-2 flex-wrap items-center">
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => fileInputRef.current?.click()}
-          className="flex-1 min-w-0 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+        <label
+          className={`flex-1 min-w-0 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5 ${disabled ? "opacity-50 cursor-not-allowed pointer-events-none" : ""}`}
         >
           <ImageIcon className="w-4 h-4" />
           Subir imagen
-        </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            name={name}
+            accept="image/*"
+            disabled={disabled}
+            onChange={handleImageChange}
+            className="hidden"
+          />
+        </label>
 
         <button
           type="button"

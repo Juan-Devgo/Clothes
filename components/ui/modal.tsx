@@ -50,7 +50,7 @@ export default function Modal({
     >
       <div
         ref={modalRef}
-        className="relative bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] m-4 overflow-auto"
+        className="minimal-scrollbar relative bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] m-4 overflow-auto"
         role="dialog"
         aria-modal="true"
       >

@@ -4,3 +4,4 @@
  */
 
 export * from './forms';
+export * from './bulk';

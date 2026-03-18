@@ -2,7 +2,7 @@
 
 import { deleteProductAction } from '@/actions/products';
 import { useProductForm } from './useProductForm';
-import { DeleteProductFormState } from '@/types/product-view/forms';
+import { DeleteProductFormState } from '@/types/product/forms';
 
 interface UseDeleteProductConfig {
   onSuccess?: (message: string) => void | Promise<void>;

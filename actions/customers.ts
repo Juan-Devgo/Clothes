@@ -3,12 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { cmsApi } from '@/lib/paths';
 import { cmsLogger } from '@/lib/logger';
-import { Customer } from '@/types/domain/types';
+import { Customer } from '@/types';
 import {
   getContent,
   postContent,
   putContent,
   deleteContent,
+  deleteContentBulk,
 } from '@/service/cms';
 import qs from 'qs';
 import {
@@ -19,12 +20,14 @@ import { z } from 'zod';
 import {
   CreateCustomerSchema,
   UpdateCustomerSchema,
-} from '@/types/customer-view/schemas';
+} from '@/types/customer/schemas';
 import {
   CreateCustomerFormState,
   UpdateCustomerFormState,
   DeleteCustomerFormState,
-} from '@/types/customer-view/forms';
+} from '@/types/customer/forms';
+import { BulkUploadFormState } from '@/types/shared/bulk';
+import { CustomerExcelRow } from '@/types/customer/excel-schemas';
 
 /**
  * Obtener la lista de clientes
@@ -396,6 +399,295 @@ export async function deleteCustomerAction(
       message: 'Error de conexión con el servidor.',
       data: fields,
       validationErrors: {},
+      cmsErrors: { status: 500 },
+    };
+  }
+}
+
+/**
+ * Crear múltiples clientes a la vez (carga masiva)
+ * Crea cada cliente junto con su cuenta asociada, igual que createCustomerAction.
+ */
+export async function createCustomersBulkAction(
+  records: CustomerExcelRow[],
+): Promise<BulkUploadFormState> {
+  cmsLogger.info(
+    { count: records.length },
+    'Action: Iniciando creación masiva de clientes',
+  );
+
+  if (!records.length) {
+    return {
+      success: false,
+      message: 'No hay registros para crear.',
+      created: 0,
+      failed: 0,
+    };
+  }
+
+  let successCount = 0;
+  let failedCount = 0;
+
+  try {
+    for (const record of records) {
+      try {
+        // 1. Crear el cliente
+        const result = await postContent<Customer>(cmsApi.CUSTOMERS, {
+          data: record,
+        });
+
+        if (!result.success || !result.data) {
+          cmsLogger.warn(
+            { error: result.message },
+            'Action: Error al crear cliente en creación masiva',
+          );
+          failedCount++;
+          continue;
+        }
+
+        const newCustomer = result.data;
+        successCount++;
+
+        // 2. Crear la cuenta asociada al cliente
+        if (newCustomer.documentId) {
+          const accountResult = await createAccountForCustomerAction(
+            newCustomer.documentId,
+          );
+
+          if (accountResult.success) {
+            cmsLogger.info(
+              {
+                customerId: newCustomer.documentId,
+                accountId: accountResult.accountId,
+              },
+              'Action: Cuenta creada para cliente en creación masiva',
+            );
+          } else {
+            cmsLogger.warn(
+              {
+                customerId: newCustomer.documentId,
+                error: accountResult.error,
+              },
+              'Action: Error creando cuenta para cliente en creación masiva',
+            );
+          }
+        }
+      } catch (error) {
+        cmsLogger.warn(
+          { error },
+          'Action: Error procesando registro en creación masiva',
+        );
+        failedCount++;
+      }
+    }
+
+    revalidatePath('/control-panel/customers');
+
+    const allSucceeded = failedCount === 0;
+
+    cmsLogger.info(
+      { created: successCount, failed: failedCount },
+      'Action: Creación masiva de clientes completada',
+    );
+
+    return {
+      success: allSucceeded,
+      message: allSucceeded
+        ? `${successCount} clientes creados exitosamente.`
+        : `${successCount} creados, ${failedCount} fallidos.`,
+      created: successCount,
+      failed: failedCount,
+    };
+  } catch (error) {
+    cmsLogger.error(
+      { error },
+      'Action: Error de conexión en creación masiva de clientes',
+    );
+    return {
+      success: false,
+      message: 'Error de conexión con el servidor.',
+      created: 0,
+      failed: records.length,
+      cmsErrors: { status: 500 },
+    };
+  }
+}
+
+/**
+ * Eliminar todos los clientes (para reemplazo masivo)
+ */
+export async function deleteAllCustomersAction(): Promise<BulkUploadFormState> {
+  cmsLogger.info('Action: Iniciando eliminación de todos los clientes');
+
+  try {
+    const content = await getContent<Customer[]>(cmsApi.CUSTOMERS);
+
+    if (!content.success || !content.data) {
+      return {
+        success: false,
+        message: 'Error al obtener los clientes existentes.',
+        deleted: 0,
+        cmsErrors: { status: content.status },
+      };
+    }
+
+    const documentIds = content.data
+      .map((c) => c.documentId)
+      .filter((id): id is string => !!id);
+
+    if (documentIds.length === 0) {
+      return {
+        success: true,
+        message: 'No hay clientes para eliminar.',
+        deleted: 0,
+      };
+    }
+
+    const result = await deleteContentBulk(cmsApi.CUSTOMERS, documentIds);
+
+    revalidatePath('/control-panel/customers');
+
+    cmsLogger.info(
+      { deleted: result.successCount, failed: result.failedCount },
+      'Action: Eliminación masiva de clientes completada',
+    );
+
+    return {
+      success: result.failedCount === 0,
+      message:
+        result.failedCount === 0
+          ? `${result.successCount} clientes eliminados.`
+          : `${result.successCount} eliminados, ${result.failedCount} fallidos.`,
+      deleted: result.successCount,
+      failed: result.failedCount,
+    };
+  } catch (error) {
+    cmsLogger.error(
+      { error },
+      'Action: Error de conexión eliminando todos los clientes',
+    );
+    return {
+      success: false,
+      message: 'Error de conexión con el servidor.',
+      deleted: 0,
+      cmsErrors: { status: 500 },
+    };
+  }
+}
+
+/**
+ * Eliminar una selección de clientes por sus documentIds
+ * Reutiliza deleteContentBulk del servicio CMS
+ */
+export async function deleteCustomersBulkAction(
+  documentIds: string[],
+): Promise<BulkUploadFormState> {
+  cmsLogger.info(
+    { count: documentIds.length },
+    'Action: Iniciando eliminación masiva de clientes seleccionados',
+  );
+
+  if (!documentIds.length) {
+    return { success: false, message: 'No hay registros seleccionados.', deleted: 0 };
+  }
+
+  try {
+    const result = await deleteContentBulk(cmsApi.CUSTOMERS, documentIds);
+
+    revalidatePath('/control-panel/customers');
+
+    cmsLogger.info(
+      { deleted: result.successCount, failed: result.failedCount },
+      'Action: Eliminación masiva de clientes seleccionados completada',
+    );
+
+    return {
+      success: result.failedCount === 0,
+      message:
+        result.failedCount === 0
+          ? `${result.successCount} clientes eliminados.`
+          : `${result.successCount} eliminados, ${result.failedCount} fallidos.`,
+      deleted: result.successCount,
+      failed: result.failedCount,
+    };
+  } catch (error) {
+    cmsLogger.error({ error }, 'Action: Error en eliminación masiva de clientes seleccionados');
+    return {
+      success: false,
+      message: 'Error de conexión con el servidor.',
+      deleted: 0,
+      cmsErrors: { status: 500 },
+    };
+  }
+}
+
+/**
+ * Actualizar un campo común en una selección de clientes
+ * Aplica los mismos cambios a todos los documentIds provistos
+ */
+export async function updateCustomersBulkAction(
+  documentIds: string[],
+  data: Partial<{
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+    birthdate: string;
+    tastes: string;
+  }>,
+): Promise<BulkUploadFormState> {
+  cmsLogger.info(
+    { count: documentIds.length, fields: Object.keys(data) },
+    'Action: Iniciando actualización masiva de clientes',
+  );
+
+  if (!documentIds.length) {
+    return { success: false, message: 'No hay registros seleccionados.', created: 0 };
+  }
+
+  let successCount = 0;
+  let failedCount = 0;
+
+  try {
+    for (const documentId of documentIds) {
+      const result = await putContent<Customer>(
+        `${cmsApi.CUSTOMERS}/${documentId}`,
+        { data },
+      );
+
+      if (result.success) {
+        successCount++;
+      } else {
+        failedCount++;
+        cmsLogger.warn(
+          { documentId, error: result.message },
+          'Action: Error al actualizar cliente en actualización masiva',
+        );
+      }
+    }
+
+    revalidatePath('/control-panel/customers');
+
+    cmsLogger.info(
+      { updated: successCount, failed: failedCount },
+      'Action: Actualización masiva de clientes completada',
+    );
+
+    return {
+      success: failedCount === 0,
+      message:
+        failedCount === 0
+          ? `${successCount} clientes actualizados.`
+          : `${successCount} actualizados, ${failedCount} fallidos.`,
+      created: successCount,
+      failed: failedCount,
+    };
+  } catch (error) {
+    cmsLogger.error({ error }, 'Action: Error en actualización masiva de clientes');
+    return {
+      success: false,
+      message: 'Error de conexión con el servidor.',
+      created: 0,
       cmsErrors: { status: 500 },
     };
   }

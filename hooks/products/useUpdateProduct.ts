@@ -2,7 +2,7 @@
 
 import { updateProductAction } from '@/actions/products';
 import { useProductForm } from './useProductForm';
-import { UpdateProductFormState } from '@/types/product-view/forms';
+import { UpdateProductFormState } from '@/types/product/forms';
 
 interface UseUpdateProductConfig {
   onSuccess?: (message: string) => void | Promise<void>;

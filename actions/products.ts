@@ -3,17 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import { cmsApi } from '@/lib/paths';
 import { cmsLogger } from '@/lib/logger';
-import {
-  Product,
-  ProductCategory,
-  ProductSubcategory,
-} from '@/types/domain/types';
+import { Product, ProductCategory, ProductSubcategory } from '@/types';
 import {
   getContent,
   postContent,
   putContent,
   deleteContent,
   uploadMedia,
+  postContentBulk,
+  deleteContentBulk,
 } from '@/service/cms';
 import { PRODUCT_STATES } from '@/lib/enums';
 import qs from 'qs';
@@ -21,12 +19,14 @@ import { z } from 'zod';
 import {
   CreateProductSchema,
   UpdateProductSchema,
-} from '@/types/product-view/schemas';
+} from '@/types/product/schemas';
 import {
   CreateProductFormState,
   UpdateProductFormState,
   DeleteProductFormState,
-} from '@/types/product-view/forms';
+} from '@/types/product/forms';
+import { BulkUploadFormState } from '@/types/shared/bulk';
+import { ProductExcelRow } from '@/types/product/excel-schemas';
 
 /**
  * Obtener la lista de productos
@@ -712,5 +712,293 @@ export async function toggleRetireProductAction(
       'Action: Error de conexión cambiando estado del producto',
     );
     return { success: false, message: 'Error de conexión con el servidor.' };
+  }
+}
+
+/**
+ * Crear múltiples productos a la vez (carga masiva)
+ */
+export async function createProductsBulkAction(
+  records: ProductExcelRow[],
+): Promise<BulkUploadFormState> {
+  cmsLogger.info(
+    { count: records.length },
+    'Action: Iniciando creación masiva de productos',
+  );
+
+  if (!records.length) {
+    return {
+      success: false,
+      message: 'No hay registros para crear.',
+      created: 0,
+      failed: 0,
+    };
+  }
+
+  try {
+    // Obtener el estado "STOCK" para asignar a nuevos productos con stock > 0
+    const stockStateId = await PRODUCT_STATES.STOCK();
+    const noStockStateId = await PRODUCT_STATES.NO_STOCK();
+
+    const items = records.map((record) => {
+      const stateId = record.stock > 0 ? stockStateId : noStockStateId;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: Record<string, any> = {
+        name: record.name,
+        price: record.price,
+        currency: record.currency,
+        description: record.description,
+        stock: record.stock,
+      };
+
+      if (stateId) {
+        data.state = { connect: [stateId] };
+      }
+
+      if (record.category) {
+        data.category = { connect: [record.category] };
+      }
+
+      if (record.subcategory) {
+        data.subcategory = { connect: [record.subcategory] };
+      }
+
+      return { data };
+    });
+
+    const result = await postContentBulk(cmsApi.PRODUCTS, items);
+
+    revalidatePath('/control-panel/products');
+
+    const allSucceeded = result.failedCount === 0;
+
+    cmsLogger.info(
+      { created: result.successCount, failed: result.failedCount },
+      'Action: Creación masiva de productos completada',
+    );
+
+    return {
+      success: allSucceeded,
+      message: allSucceeded
+        ? `${result.successCount} productos creados exitosamente.`
+        : `${result.successCount} creados, ${result.failedCount} fallidos.`,
+      created: result.successCount,
+      failed: result.failedCount,
+    };
+  } catch (error) {
+    cmsLogger.error(
+      { error },
+      'Action: Error de conexión en creación masiva de productos',
+    );
+    return {
+      success: false,
+      message: 'Error de conexión con el servidor.',
+      created: 0,
+      failed: records.length,
+      cmsErrors: { status: 500 },
+    };
+  }
+}
+
+/**
+ * Eliminar todos los productos (para reemplazo masivo)
+ */
+export async function deleteAllProductsAction(): Promise<BulkUploadFormState> {
+  cmsLogger.info('Action: Iniciando eliminación de todos los productos');
+
+  try {
+    const content = await getContent<Product[]>(cmsApi.PRODUCTS);
+
+    if (!content.success || !content.data) {
+      return {
+        success: false,
+        message: 'Error al obtener los productos existentes.',
+        deleted: 0,
+        cmsErrors: { status: content.status },
+      };
+    }
+
+    const documentIds = content.data
+      .map((p) => p.documentId)
+      .filter((id): id is string => !!id);
+
+    if (documentIds.length === 0) {
+      return {
+        success: true,
+        message: 'No hay productos para eliminar.',
+        deleted: 0,
+      };
+    }
+
+    const result = await deleteContentBulk(cmsApi.PRODUCTS, documentIds);
+
+    revalidatePath('/control-panel/products');
+
+    cmsLogger.info(
+      { deleted: result.successCount, failed: result.failedCount },
+      'Action: Eliminación masiva de productos completada',
+    );
+
+    return {
+      success: result.failedCount === 0,
+      message:
+        result.failedCount === 0
+          ? `${result.successCount} productos eliminados.`
+          : `${result.successCount} eliminados, ${result.failedCount} fallidos.`,
+      deleted: result.successCount,
+      failed: result.failedCount,
+    };
+  } catch (error) {
+    cmsLogger.error(
+      { error },
+      'Action: Error de conexión eliminando todos los productos',
+    );
+    return {
+      success: false,
+      message: 'Error de conexión con el servidor.',
+      deleted: 0,
+      cmsErrors: { status: 500 },
+    };
+  }
+}
+
+/**
+ * Eliminar una selección de productos por sus documentIds
+ * Reutiliza deleteContentBulk del servicio CMS
+ */
+export async function deleteProductsBulkAction(
+  documentIds: string[],
+): Promise<BulkUploadFormState> {
+  cmsLogger.info(
+    { count: documentIds.length },
+    'Action: Iniciando eliminación masiva de productos seleccionados',
+  );
+
+  if (!documentIds.length) {
+    return { success: false, message: 'No hay registros seleccionados.', deleted: 0 };
+  }
+
+  try {
+    const result = await deleteContentBulk(cmsApi.PRODUCTS, documentIds);
+
+    revalidatePath('/control-panel/products');
+
+    cmsLogger.info(
+      { deleted: result.successCount, failed: result.failedCount },
+      'Action: Eliminación masiva de productos seleccionados completada',
+    );
+
+    return {
+      success: result.failedCount === 0,
+      message:
+        result.failedCount === 0
+          ? `${result.successCount} productos eliminados.`
+          : `${result.successCount} eliminados, ${result.failedCount} fallidos.`,
+      deleted: result.successCount,
+      failed: result.failedCount,
+    };
+  } catch (error) {
+    cmsLogger.error({ error }, 'Action: Error en eliminación masiva de productos seleccionados');
+    return {
+      success: false,
+      message: 'Error de conexión con el servidor.',
+      deleted: 0,
+      cmsErrors: { status: 500 },
+    };
+  }
+}
+
+/**
+ * Actualizar campos comunes en una selección de productos.
+ * Aplica los mismos cambios a todos los documentIds provistos.
+ * Si se actualiza el stock, el estado (STOCK / NO_STOCK) se recalcula automáticamente.
+ */
+export async function updateProductsBulkAction(
+  documentIds: string[],
+  data: Partial<{
+    price: number;
+    currency: string;
+    description: string;
+    stock: number;
+    category: string;
+    subcategory: string;
+  }>,
+): Promise<BulkUploadFormState> {
+  cmsLogger.info(
+    { count: documentIds.length, fields: Object.keys(data) },
+    'Action: Iniciando actualización masiva de productos',
+  );
+
+  if (!documentIds.length) {
+    return { success: false, message: 'No hay registros seleccionados.', created: 0 };
+  }
+
+  // Construir el objeto CMS con el formato correcto para relaciones
+  const cmsData: Record<string, unknown> = {};
+
+  if (data.price !== undefined) cmsData.price = data.price;
+  if (data.currency !== undefined) cmsData.currency = data.currency;
+  if (data.description !== undefined) cmsData.description = data.description;
+  if (data.stock !== undefined) cmsData.stock = data.stock;
+  if (data.category) cmsData.category = { connect: [data.category] };
+  if (data.subcategory) cmsData.subcategory = { connect: [data.subcategory] };
+
+  // Recalcular estado si se actualiza el stock
+  if (data.stock !== undefined) {
+    const stateId =
+      data.stock > 0
+        ? await PRODUCT_STATES.STOCK()
+        : await PRODUCT_STATES.NO_STOCK();
+    if (stateId) {
+      cmsData.state = { connect: [stateId] };
+    }
+  }
+
+  let successCount = 0;
+  let failedCount = 0;
+
+  try {
+    for (const documentId of documentIds) {
+      const result = await putContent<Product>(
+        `${cmsApi.PRODUCTS}/${documentId}`,
+        { data: cmsData },
+      );
+
+      if (result.success) {
+        successCount++;
+      } else {
+        failedCount++;
+        cmsLogger.warn(
+          { documentId, error: result.message },
+          'Action: Error al actualizar producto en actualización masiva',
+        );
+      }
+    }
+
+    revalidatePath('/control-panel/products');
+
+    cmsLogger.info(
+      { updated: successCount, failed: failedCount },
+      'Action: Actualización masiva de productos completada',
+    );
+
+    return {
+      success: failedCount === 0,
+      message:
+        failedCount === 0
+          ? `${successCount} productos actualizados.`
+          : `${successCount} actualizados, ${failedCount} fallidos.`,
+      created: successCount,
+      failed: failedCount,
+    };
+  } catch (error) {
+    cmsLogger.error({ error }, 'Action: Error en actualización masiva de productos');
+    return {
+      success: false,
+      message: 'Error de conexión con el servidor.',
+      created: 0,
+      cmsErrors: { status: 500 },
+    };
   }
 }

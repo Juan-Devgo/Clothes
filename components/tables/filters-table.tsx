@@ -100,7 +100,7 @@ export default function FiltersTable<T>({
         type="text"
         placeholder="Buscar"
         onChange={handleInputChange}
-        className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+        className="px-4 py-2.5 w-xl bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
       />
       <button
         onClick={toggleFiltersList}

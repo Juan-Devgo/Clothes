@@ -9,6 +9,11 @@ interface ProductTableContextType {
   createModalOpen: boolean;
   deleteModalOpen: boolean;
   detailsModalOpen: boolean;
+  uploadModalOpen: boolean;
+  downloadModalOpen: boolean;
+  bulkEditModalOpen: boolean;
+  bulkDeleteModalOpen: boolean;
+  bulkDownloadModalOpen: boolean;
 
   // Producto seleccionado
   selectedProduct: Product | null;
@@ -18,6 +23,11 @@ interface ProductTableContextType {
   openDeleteModal: (product: Product) => void;
   openDetailsModal: (product: Product) => void;
   openCreateModal: () => void;
+  openUploadModal: () => void;
+  openDownloadModal: () => void;
+  openBulkEditModal: () => void;
+  openBulkDeleteModal: () => void;
+  openBulkDownloadModal: () => void;
   closeAllModals: () => void;
 }
 
@@ -31,6 +41,11 @@ export function ProductTableProvider({ children }: { children: ReactNode }) {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [downloadModalOpen, setDownloadModalOpen] = useState(false);
+  const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
+  const [bulkDownloadModalOpen, setBulkDownloadModalOpen] = useState(false);
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
@@ -54,11 +69,36 @@ export function ProductTableProvider({ children }: { children: ReactNode }) {
     setCreateModalOpen(true);
   }
 
+  function openUploadModal() {
+    setUploadModalOpen(true);
+  }
+
+  function openDownloadModal() {
+    setDownloadModalOpen(true);
+  }
+
+  function openBulkEditModal() {
+    setBulkEditModalOpen(true);
+  }
+
+  function openBulkDeleteModal() {
+    setBulkDeleteModalOpen(true);
+  }
+
+  function openBulkDownloadModal() {
+    setBulkDownloadModalOpen(true);
+  }
+
   function closeAllModals() {
     setEditModalOpen(false);
     setCreateModalOpen(false);
     setDeleteModalOpen(false);
     setDetailsModalOpen(false);
+    setUploadModalOpen(false);
+    setDownloadModalOpen(false);
+    setBulkEditModalOpen(false);
+    setBulkDeleteModalOpen(false);
+    setBulkDownloadModalOpen(false);
     setSelectedProduct(null);
   }
 
@@ -67,11 +107,21 @@ export function ProductTableProvider({ children }: { children: ReactNode }) {
     createModalOpen,
     deleteModalOpen,
     detailsModalOpen,
+    uploadModalOpen,
+    downloadModalOpen,
+    bulkEditModalOpen,
+    bulkDeleteModalOpen,
+    bulkDownloadModalOpen,
     selectedProduct,
     openEditModal,
     openDeleteModal,
     openDetailsModal,
     openCreateModal,
+    openUploadModal,
+    openDownloadModal,
+    openBulkEditModal,
+    openBulkDeleteModal,
+    openBulkDownloadModal,
     closeAllModals,
   };
 

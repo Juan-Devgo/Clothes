@@ -2,7 +2,7 @@
 
 import { createCustomerAction } from '@/actions/customers';
 import { useCustomerForm } from './useCustomerForm';
-import { CreateCustomerFormState } from '@/types/customer-view/forms';
+import { CreateCustomerFormState } from '@/types/customer/forms';
 
 interface UseCreateCustomerConfig {
   onSuccess?: (message: string) => void | Promise<void>;

@@ -2,7 +2,7 @@
 
 import { deleteCustomerAction } from '@/actions/customers';
 import { useCustomerForm } from './useCustomerForm';
-import { DeleteCustomerFormState } from '@/types/customer-view/forms';
+import { DeleteCustomerFormState } from '@/types/customer/forms';
 
 interface UseDeleteCustomerConfig {
   onSuccess?: (message: string) => void | Promise<void>;
