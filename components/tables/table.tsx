@@ -1,7 +1,7 @@
 'use client';
 
 import { Column, Filter } from '@/types';
-import { useState, useEffect, useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import DataTable from 'react-data-table-component';
 import CreateRecordTable from './create-record-table';
 import FiltersTable from './filters-table';
@@ -69,10 +69,6 @@ export default function Table<T>({
   const [records, setRecords] = useState<T[]>(data);
   const [selectedCount, setSelectedCount] = useState(0);
   const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
-
-  useEffect(() => {
-    setSelectedCount(0);
-  }, [clearSelectedRows]);
 
   const paginationComponentOptions = {
     rowsPerPageText: 'Filas por página',
