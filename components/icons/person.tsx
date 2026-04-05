@@ -1,15 +1,20 @@
 interface PersonIconProps {
+  className?: string;
   color?: string;
   size?: string;
 }
 
-export default function PersonIcon({ color, size }: PersonIconProps) {
+export default function PersonIcon({
+  className,
+  color,
+  size,
+}: PersonIconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       stroke="currentColor"
-      className={`w-${size || 8} h-${size || 8} text-${color || 'blue-600'}`}
+      className={`w-${size || 8} h-${size || 8} text-${color || "blue-600"} ${className}`}
       viewBox="0 0 24 24"
     >
       <path

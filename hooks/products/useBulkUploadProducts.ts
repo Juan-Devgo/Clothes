@@ -6,11 +6,12 @@ import {
   deleteAllProductsAction,
 } from '@/actions/products';
 import {
-  ProductExcelRowSchema,
+  createProductExcelRowSchema,
   ProductExcelRow,
 } from '@/types/product/excel-schemas';
 import { parseSpreadsheetFile, type ExcelParseConfig } from '@/service/excel';
 import { BulkUploadEntityConfig } from '@/types/shared/bulk';
+import type { ProductCategory, ProductSubcategory } from '@/types';
 
 /**
  * Configuración de parseo Excel para Productos.
@@ -32,17 +33,22 @@ const productExcelConfig: ExcelParseConfig = {
   },
 };
 
-const productBulkConfig: BulkUploadEntityConfig<ProductExcelRow> = {
-  entityName: 'Producto',
-  columnLabels: Object.fromEntries(
-    Object.entries(productExcelConfig.columnMapping).map(([k, v]) => [v, k]),
-  ),
-  rowSchema: ProductExcelRowSchema,
-  bulkCreateAction: createProductsBulkAction,
-  deleteAllAction: deleteAllProductsAction,
-  parseExcelFile: (file) => parseSpreadsheetFile(file, productExcelConfig),
-};
+const columnLabels = Object.fromEntries(
+  Object.entries(productExcelConfig.columnMapping).map(([k, v]) => [v, k]),
+);
 
-export function useBulkUploadProducts() {
+export function useBulkUploadProducts(
+  categories: ProductCategory[] = [],
+  subcategories: ProductSubcategory[] = [],
+) {
+  const productBulkConfig: BulkUploadEntityConfig<ProductExcelRow> = {
+    entityName: 'Producto',
+    columnLabels,
+    rowSchema: createProductExcelRowSchema(categories, subcategories),
+    bulkCreateAction: createProductsBulkAction,
+    deleteAllAction: deleteAllProductsAction,
+    parseExcelFile: (file) => parseSpreadsheetFile(file, productExcelConfig),
+  };
+
   return useBulkUpload<ProductExcelRow>(productBulkConfig);
 }

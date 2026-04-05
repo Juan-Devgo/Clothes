@@ -7,13 +7,13 @@ export default async function AuthenticatedUser() {
   if (!currentUser.user) return null;
 
   return (
-    <div className="flex gap-4 items-center">
+    <div className="flex gap-2 sm:gap-4 items-center shrink-0">
       {/**<a href="/profile">**/}
-      <div className="rounded-full bg-gray-100">
+      <div className="hidden sm:block rounded-full bg-gray-100">
         <PersonIcon size="8" color="black" />
       </div>
       {/**</a>**/}
-      <span className="text-xl">{currentUser.user?.username}</span>
+      <span className="text-xs sm:text-sm md:text-base lg:text-xl font-medium">{currentUser.user?.username}</span>
     </div>
   );
 }

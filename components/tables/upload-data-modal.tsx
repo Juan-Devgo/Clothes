@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { useRef } from 'react';
-import { UploadIcon } from '../icons/upload';
-import { DownloadIcon } from '../icons/download';
-import WarningIcon from '../icons/warning';
-import CheckedIcon from '../icons/checked';
-import type { UseBulkUploadReturn } from '@/hooks/bulk';
-import type { BulkUploadMode } from '@/types/shared/bulk';
-import { downloadFileWithTimestamp } from '@/service/download';
-import DataTable from 'react-data-table-component';
+import { useRef } from "react";
+import { UploadIcon } from "../icons/upload";
+import { DownloadIcon } from "../icons/download";
+import WarningIcon from "../icons/warning";
+import CheckedIcon from "../icons/checked";
+import type { UseBulkUploadReturn } from "@/hooks/bulk";
+import type { BulkUploadMode } from "@/types/shared/bulk";
+import { downloadFileWithTimestamp } from "@/service/download";
+import DataTable from "react-data-table-component";
 
 interface UploadDataModalProps<TRow> {
   /** Estado y funciones del hook de carga masiva */
@@ -32,7 +32,7 @@ export default function UploadDataModal<TRow>({
   async function handleDownloadTemplate() {
     await downloadFileWithTimestamp({
       fileUrl: templateUrl,
-      prefix: 'plantilla',
+      prefix: "plantilla",
       label: entityName,
     });
   }
@@ -67,7 +67,7 @@ export default function UploadDataModal<TRow>({
   }
 
   // Paso 1: Selección de archivo
-  if (step === 'idle') {
+  if (step === "idle") {
     return (
       <div className="flex flex-col items-center gap-4 py-2">
         <div className="w-16 h-16 rounded-full bg-cyan-100 flex items-center justify-center">
@@ -92,7 +92,7 @@ export default function UploadDataModal<TRow>({
         />
 
         {/* Botones */}
-        <div className="flex gap-3 w-full">
+        <div className="flex flex-col sm:flex-row gap-3 w-full">
           <button
             type="button"
             onClick={handleClose}
@@ -122,7 +122,7 @@ export default function UploadDataModal<TRow>({
   }
 
   // Paso 1.5: Revisión de validación (tabla con resultados detallados)
-  if (step === 'review') {
+  if (step === "review") {
     // Construir filas para la tabla plana
     const reviewData = validationResults.map((result) => ({
       id: result.rowNumber,
@@ -136,10 +136,11 @@ export default function UploadDataModal<TRow>({
     type ReviewRow = (typeof reviewData)[number];
     const reviewColumns = [
       {
-        name: '#',
+        name: "#",
         selector: (row: ReviewRow) => row.rowNumber,
-        width: '55px',
-        center: true as const,
+        width: "55px",
+        style: { justifyContent: "center" },
+        headerStyle: { justifyContent: "center" },
       },
       ...Object.entries(columnLabels).map(([key, label]) => ({
         name: label,
@@ -148,20 +149,20 @@ export default function UploadDataModal<TRow>({
           const fieldErr = row.fieldErrors[key];
           const hasError = fieldErr && fieldErr.length > 0;
           const raw = (row as Record<string, unknown>)[key];
-          const value = raw != null ? String(raw) : '';
+          const value = raw != null ? String(raw) : "";
 
           if (hasError) {
             return (
               <span
                 className="bg-red-300 text-red-900 rounded px-1.5 py-0.5 text-xs font-medium max-w-full truncate"
-                title={fieldErr.join(', ')}
+                title={fieldErr.join(", ")}
               >
-                {value || '(vacío)'}
+                {value || "(vacío)"}
               </span>
             );
           }
           return (
-            <span className="text-xs truncate max-w-full">{value || '—'}</span>
+            <span className="text-xs truncate max-w-full">{value || "—"}</span>
           );
         },
       })),
@@ -173,7 +174,7 @@ export default function UploadDataModal<TRow>({
         <div className="flex items-center gap-3">
           <div
             className={`w-12 h-12 rounded-full flex items-center justify-center ${
-              validationErrors.length > 0 ? 'bg-amber-100' : 'bg-green-100'
+              validationErrors.length > 0 ? "bg-amber-100" : "bg-green-100"
             }`}
           >
             {validationErrors.length > 0 ? <WarningIcon /> : <CheckedIcon />}
@@ -183,14 +184,14 @@ export default function UploadDataModal<TRow>({
               Resultado de validación
             </h3>
             <p className="text-gray-500 text-sm">
-              <span className="text-green-700 font-medium">{validCount}</span>{' '}
+              <span className="text-green-700 font-medium">{validCount}</span>{" "}
               registros válidos
               {validationErrors.length > 0 && (
                 <>
-                  {', '}
+                  {", "}
                   <span className="text-red-600 font-medium">
                     {validationErrors.length}
-                  </span>{' '}
+                  </span>{" "}
                   con errores
                 </>
               )}
@@ -203,24 +204,28 @@ export default function UploadDataModal<TRow>({
           <span className="flex items-center gap-1.5">
             <span
               className="w-3 h-3 rounded"
-              style={{ backgroundColor: '#dcfce7' }}
+              style={{ backgroundColor: "#dcfce7" }}
             />
             Válido
           </span>
-          <span className="flex items-center gap-1.5">
-            <span
-              className="w-3 h-3 rounded"
-              style={{ backgroundColor: '#fee2e2' }}
-            />
-            Fila con error
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span
-              className="w-3 h-3 rounded"
-              style={{ backgroundColor: '#fca5a5' }}
-            />
-            Campo con error
-          </span>
+          {validationErrors.length > 0 && (
+            <>
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="w-3 h-3 rounded"
+                  style={{ backgroundColor: "#fee2e2" }}
+                />
+                Fila con error
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="w-3 h-3 rounded"
+                  style={{ backgroundColor: "#fca5a5" }}
+                />
+                Campo con error
+              </span>
+            </>
+          )}
         </div>
 
         {/* Tabla de resultados */}
@@ -234,11 +239,11 @@ export default function UploadDataModal<TRow>({
             conditionalRowStyles={[
               {
                 when: (row: ReviewRow) => row.isValid,
-                style: { backgroundColor: '#dcfce7' },
+                style: { backgroundColor: "#dcfce7" },
               },
               {
                 when: (row: ReviewRow) => !row.isValid,
-                style: { backgroundColor: '#fee2e2' },
+                style: { backgroundColor: "#fee2e2" },
               },
             ]}
             noDataComponent={
@@ -271,7 +276,7 @@ export default function UploadDataModal<TRow>({
   }
 
   // Paso 2: Archivo validado - preguntar modo
-  if (step === 'validated') {
+  if (step === "validated") {
     return (
       <div className="flex flex-col items-center gap-4 py-4">
         <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
@@ -286,7 +291,7 @@ export default function UploadDataModal<TRow>({
           Se encontraron <strong>{validCount}</strong> registros válidos
           {validationErrors.length > 0 && (
             <span className="text-amber-600">
-              {' '}
+              {" "}
               y <strong>{validationErrors.length}</strong> con errores (serán
               omitidos)
             </span>
@@ -302,8 +307,8 @@ export default function UploadDataModal<TRow>({
             </p>
             {validationErrors.slice(0, 10).map((err) => (
               <div key={err.row} className="text-amber-700">
-                <span className="font-medium">Fila {err.row}:</span>{' '}
-                {err.errors.join(', ')}
+                <span className="font-medium">Fila {err.row}:</span>{" "}
+                {err.errors.join(", ")}
               </div>
             ))}
             {validationErrors.length > 10 && (
@@ -315,7 +320,7 @@ export default function UploadDataModal<TRow>({
         )}
 
         <p className="text-gray-500 text-sm text-center max-w-md">
-          ¿Desea <strong>agregar</strong> estos registros a los existentes o{' '}
+          ¿Desea <strong>agregar</strong> estos registros a los existentes o{" "}
           <strong>reemplazar</strong> todos los datos actuales?
         </p>
 
@@ -330,7 +335,7 @@ export default function UploadDataModal<TRow>({
           </button>
           <button
             type="button"
-            onClick={() => handleSelectMode('append')}
+            onClick={() => handleSelectMode("append")}
             disabled={isPending}
             className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -341,7 +346,7 @@ export default function UploadDataModal<TRow>({
           </button>
           <button
             type="button"
-            onClick={() => handleSelectMode('replace')}
+            onClick={() => handleSelectMode("replace")}
             disabled={isPending}
             className="flex-1 px-4 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -356,7 +361,7 @@ export default function UploadDataModal<TRow>({
   }
 
   // Paso 3: Subiendo
-  if (step === 'uploading') {
+  if (step === "uploading") {
     return (
       <div className="flex flex-col items-center gap-4 py-8">
         <span className="w-12 h-12 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin" />
@@ -371,7 +376,7 @@ export default function UploadDataModal<TRow>({
   }
 
   // Paso 4: Resultado final
-  if (step === 'done') {
+  if (step === "done") {
     return (
       <div className="flex flex-col items-center gap-4 py-4">
         <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">

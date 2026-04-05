@@ -1,9 +1,10 @@
-'use server';
+"use server";
 
-import { revalidatePath } from 'next/cache';
-import { cmsApi } from '@/lib/paths';
-import { cmsLogger } from '@/lib/logger';
-import { Product, ProductCategory, ProductSubcategory } from '@/types';
+import { revalidateTag, cacheLife, cacheTag } from "next/cache";
+import { cmsApi } from "@/lib/paths";
+import { cmsLogger } from "@/lib/logger";
+import { Product, ProductCategory, ProductSubcategory } from "@/types";
+import { getAuthToken } from "@/service/auth";
 import {
   getContent,
   postContent,
@@ -12,21 +13,21 @@ import {
   uploadMedia,
   postContentBulk,
   deleteContentBulk,
-} from '@/service/cms';
-import { PRODUCT_STATES } from '@/lib/enums';
-import qs from 'qs';
-import { z } from 'zod';
+} from "@/service/cms";
+import { PRODUCT_STATES } from "@/lib/enums";
+import qs from "qs";
+import { z } from "zod";
 import {
   CreateProductSchema,
   UpdateProductSchema,
-} from '@/types/product/schemas';
+} from "@/types/product/schemas";
 import {
   CreateProductFormState,
   UpdateProductFormState,
   DeleteProductFormState,
-} from '@/types/product/forms';
-import { BulkUploadFormState } from '@/types/shared/bulk';
-import { ProductExcelRow } from '@/types/product/excel-schemas';
+} from "@/types/product/forms";
+import { BulkUploadFormState } from "@/types/shared/bulk";
+import { ProductExcelRow } from "@/types/product/excel-schemas";
 
 /**
  * Obtener la lista de productos
@@ -36,19 +37,16 @@ export async function getProductsAction() {
     {
       populate: {
         category: {
-          fields: ['name', 'label'],
+          fields: ["name", "label"],
         },
         subcategory: {
-          fields: ['name', 'label'],
+          fields: ["name", "label"],
         },
         state: {
-          fields: ['name', 'label'],
-        },
-        photo: {
-          fields: ['name', 'alternativeText', 'url', 'formats'],
+          fields: ["name", "label"],
         },
         promos: {
-          fields: ['name', 'description'],
+          fields: ["name", "description"],
         },
       },
     },
@@ -57,6 +55,108 @@ export async function getProductsAction() {
 
   const content = await getContent(`${cmsApi.PRODUCTS}?${query}`);
   return content?.data;
+}
+
+/**
+ * Parámetros para obtener productos paginados
+ */
+export interface PaginatedProductsParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  sortField?: string;
+  sortDirection?: "asc" | "desc";
+  searchableFields?: string[];
+}
+
+export interface PaginatedProductsResult {
+  data: Product[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+}
+
+async function cachedFetchProducts(
+  token: string,
+  queryString: string,
+  page: number,
+  pageSize: number,
+): Promise<PaginatedProductsResult> {
+  "use cache";
+  cacheLife({ stale: 0, revalidate: 30, expire: 60 });
+  cacheTag("products");
+
+  const response = await fetch(`${cmsApi.PRODUCTS}?${queryString}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    return { data: [], total: 0, page, pageSize, pageCount: 0 };
+  }
+
+  const rawData = await response.json();
+  return {
+    data: (rawData?.data as Product[]) ?? [],
+    total: rawData?.meta?.pagination?.total ?? 0,
+    page: rawData?.meta?.pagination?.page ?? page,
+    pageSize: rawData?.meta?.pagination?.pageSize ?? pageSize,
+    pageCount: rawData?.meta?.pagination?.pageCount ?? 0,
+  };
+}
+
+/**
+ * Obtener productos con paginación, búsqueda y ordenamiento server-side
+ */
+export async function getProductsPaginatedAction(
+  params: PaginatedProductsParams = {},
+): Promise<PaginatedProductsResult> {
+  const token = await getAuthToken();
+  if (!token) {
+    return { data: [], total: 0, page: 1, pageSize: 10, pageCount: 0 };
+  }
+
+  const {
+    page = 1,
+    pageSize = 10,
+    search = "",
+    sortField,
+    sortDirection = "asc",
+    searchableFields = ["name"],
+  } = params;
+
+  const queryObj: Record<string, unknown> = {
+    fields: ["name", "price", "currency", "stock", "documentId"],
+    populate: {
+      category: { fields: ["name", "label"] },
+      subcategory: { fields: ["name", "label"] },
+      state: { fields: ["name", "label"] },
+    },
+    pagination: { page, pageSize },
+  };
+
+  if (sortField) {
+    queryObj.sort = [`${sortField}:${sortDirection}`];
+  }
+
+  if (search.trim()) {
+    queryObj.filters = {
+      $or: searchableFields.map((field) => {
+        const parts = field.split(".");
+        if (parts.length === 2) {
+          return { [parts[0]]: { [parts[1]]: { $containsi: search } } };
+        }
+        return { [field]: { $containsi: search } };
+      }),
+    };
+  }
+
+  const queryString = qs.stringify(queryObj, { encodeValuesOnly: true });
+  return cachedFetchProducts(token, queryString, page, pageSize);
 }
 
 /**
@@ -70,19 +170,19 @@ export async function getProductByIdAction(
       {
         populate: {
           category: {
-            fields: ['documentId', 'name', 'label'],
+            fields: ["documentId", "name", "label"],
           },
           subcategory: {
-            fields: ['documentId', 'name', 'label'],
+            fields: ["documentId", "name", "label"],
           },
           state: {
-            fields: ['documentId', 'name', 'label'],
+            fields: ["documentId", "name", "label"],
           },
           photo: {
-            fields: ['name', 'alternativeText', 'url', 'formats'],
+            fields: ["name", "alternativeText", "url", "formats"],
           },
           promos: {
-            fields: ['documentId', 'name', 'description'],
+            fields: ["documentId", "name", "description"],
           },
         },
       },
@@ -113,7 +213,7 @@ export async function getCategoriesAction(): Promise<ProductCategory[] | null> {
     if (!result.success) {
       cmsLogger.error(
         { error: result.message },
-        'Action: Error al obtener las categorías de productos',
+        "Action: Error al obtener las categorías de productos",
       );
       return null;
     }
@@ -122,7 +222,7 @@ export async function getCategoriesAction(): Promise<ProductCategory[] | null> {
   } catch (error) {
     cmsLogger.error(
       { error },
-      'Action: Error de conexión obteniendo categorías',
+      "Action: Error de conexión obteniendo categorías",
     );
     return null;
   }
@@ -139,7 +239,7 @@ export async function getSubcategoriesAction(): Promise<
       {
         populate: {
           product_category: {
-            fields: ['documentId', 'name', 'label'],
+            fields: ["documentId", "name", "label"],
           },
         },
       },
@@ -153,7 +253,7 @@ export async function getSubcategoriesAction(): Promise<
     if (!result.success) {
       cmsLogger.error(
         { error: result.message },
-        'Action: Error al obtener las subcategorías de productos',
+        "Action: Error al obtener las subcategorías de productos",
       );
       return null;
     }
@@ -162,7 +262,7 @@ export async function getSubcategoriesAction(): Promise<
   } catch (error) {
     cmsLogger.error(
       { error },
-      'Action: Error de conexión obteniendo subcategorías',
+      "Action: Error de conexión obteniendo subcategorías",
     );
     return null;
   }
@@ -175,22 +275,22 @@ export async function createProductAction(
   formData: FormData,
 ): Promise<CreateProductFormState> {
   cmsLogger.info(
-    { name: formData.get('name') },
-    'Action: Iniciando creación de producto',
+    { name: formData.get("name") },
+    "Action: Iniciando creación de producto",
   );
 
   const fields = {
-    name: formData.get('name') as string,
-    price: parseFloat(formData.get('price') as string) || 0,
-    currency: (formData.get('currency') as string) || 'COP',
-    description: (formData.get('description') as string) || undefined,
-    stock: parseInt(formData.get('stock') as string) || 0,
-    category: (formData.get('category') as string) || undefined,
-    subcategory: (formData.get('subcategory') as string) || undefined,
+    name: formData.get("name") as string,
+    price: parseFloat(formData.get("price") as string) || 0,
+    currency: (formData.get("currency") as string) || "COP",
+    description: (formData.get("description") as string) || undefined,
+    stock: parseInt(formData.get("stock") as string) || 0,
+    category: (formData.get("category") as string) || undefined,
+    subcategory: (formData.get("subcategory") as string) || undefined,
   };
 
   // Extraer el archivo de imagen (puede ser File o null)
-  const photoFile = formData.get('photo') as File | null;
+  const photoFile = formData.get("photo") as File | null;
 
   // Validación de los datos
   const validatedFields = CreateProductSchema.safeParse(fields);
@@ -200,11 +300,11 @@ export async function createProductAction(
 
     cmsLogger.warn(
       { errors: flattenedErrors.fieldErrors },
-      'Action: Creación de producto fallida: error de validación',
+      "Action: Creación de producto fallida: error de validación",
     );
     return {
       success: false,
-      message: 'Error de validación.',
+      message: "Error de validación.",
       data: fields,
       validationErrors: flattenedErrors.fieldErrors,
       cmsErrors: {},
@@ -216,13 +316,13 @@ export async function createProductAction(
     let photoId: number | undefined;
     if (photoFile && photoFile.size > 0) {
       // Validar tipo de archivo
-      if (!photoFile.type.startsWith('image/')) {
+      if (!photoFile.type.startsWith("image/")) {
         return {
           success: false,
-          message: 'Error de validación.',
+          message: "Error de validación.",
           data: fields,
           validationErrors: {
-            photo: ['El archivo debe ser una imagen (jpg, png, webp, etc.)'],
+            photo: ["El archivo debe ser una imagen (jpg, png, webp, etc.)"],
           },
           cmsErrors: {},
         };
@@ -233,10 +333,10 @@ export async function createProductAction(
       if (photoFile.size > MAX_SIZE) {
         return {
           success: false,
-          message: 'Error de validación.',
+          message: "Error de validación.",
           data: fields,
           validationErrors: {
-            photo: ['La imagen no debe superar los 5MB'],
+            photo: ["La imagen no debe superar los 5MB"],
           },
           cmsErrors: {},
         };
@@ -246,14 +346,14 @@ export async function createProductAction(
       if (!uploadResult.success || !uploadResult.data) {
         cmsLogger.error(
           { error: uploadResult.message },
-          'Action: Error al subir la imagen del producto',
+          "Action: Error al subir la imagen del producto",
         );
         return {
           success: false,
-          message: 'Error al subir la imagen.',
+          message: "Error al subir la imagen.",
           data: fields,
           validationErrors: {
-            photo: ['No se pudo subir la imagen. Intente de nuevo.'],
+            photo: ["No se pudo subir la imagen. Intente de nuevo."],
           },
           cmsErrors: {
             status: uploadResult.status,
@@ -265,7 +365,7 @@ export async function createProductAction(
       photoId = Number(uploadResult.data.id);
       cmsLogger.info(
         { photoId },
-        'Action: Imagen del producto subida exitosamente',
+        "Action: Imagen del producto subida exitosamente",
       );
     }
 
@@ -301,7 +401,7 @@ export async function createProductAction(
       cmsData.state = { connect: [stateId] };
     } else {
       cmsLogger.warn(
-        'Action: No se pudo determinar el estado del producto según el stock',
+        "Action: No se pudo determinar el estado del producto según el stock",
       );
     }
 
@@ -312,16 +412,16 @@ export async function createProductAction(
     if (!result.success || !result.data) {
       cmsLogger.error(
         { error: result.message },
-        'Action: Error al crear el producto en el CMS',
+        "Action: Error al crear el producto en el CMS",
       );
 
-      const isUniqueError = result.message?.toLowerCase().includes('unique');
+      const isUniqueError = result.message?.toLowerCase().includes("unique");
 
       return {
         success: false,
         message: isUniqueError
-          ? 'Ya existe un producto con ese nombre. Por favor use uno diferente.'
-          : 'Error al crear el producto.',
+          ? "Ya existe un producto con ese nombre. Por favor use uno diferente."
+          : "Error al crear el producto.",
         data: fields,
         validationErrors: {},
         cmsErrors: { status: result.status, message: result.message },
@@ -331,24 +431,24 @@ export async function createProductAction(
     const newProduct = result.data;
     cmsLogger.info(
       { productId: newProduct.documentId },
-      'Action: Producto creado exitosamente',
+      "Action: Producto creado exitosamente",
     );
 
-    revalidatePath('/control-panel/products');
+    revalidateTag("products", "default");
 
     return {
       success: true,
-      message: 'Producto creado exitosamente.',
+      message: "Producto creado exitosamente.",
       data: fields,
       validationErrors: {},
       cmsErrors: {},
       productId: newProduct.documentId,
     };
   } catch (error) {
-    cmsLogger.error({ error }, 'Action: Error de conexión creando producto');
+    cmsLogger.error({ error }, "Action: Error de conexión creando producto");
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       data: fields,
       validationErrors: {},
       cmsErrors: { status: 500 },
@@ -362,36 +462,36 @@ export async function createProductAction(
 export async function updateProductAction(
   formData: FormData,
 ): Promise<UpdateProductFormState> {
-  const documentId = formData.get('documentId') as string;
+  const documentId = formData.get("documentId") as string;
 
-  cmsLogger.info({ documentId }, 'Action: Iniciando actualización de producto');
+  cmsLogger.info({ documentId }, "Action: Iniciando actualización de producto");
 
   const fields = {
     documentId,
-    name: (formData.get('name') as string) || undefined,
-    price: formData.get('price')
-      ? parseFloat(formData.get('price') as string)
+    name: (formData.get("name") as string) || undefined,
+    price: formData.get("price")
+      ? parseFloat(formData.get("price") as string)
       : undefined,
-    currency: (formData.get('currency') as string) || undefined,
-    description: (formData.get('description') as string) || undefined,
-    stock: formData.get('stock')
-      ? parseInt(formData.get('stock') as string)
+    currency: (formData.get("currency") as string) || undefined,
+    description: (formData.get("description") as string) || undefined,
+    stock: formData.get("stock")
+      ? parseInt(formData.get("stock") as string)
       : undefined,
-    category: (formData.get('category') as string) || undefined,
-    subcategory: (formData.get('subcategory') as string) || undefined,
+    category: (formData.get("category") as string) || undefined,
+    subcategory: (formData.get("subcategory") as string) || undefined,
   };
 
   // Extraer el archivo de imagen (puede ser File o null)
-  const photoFile = formData.get('photo') as File | null;
+  const photoFile = formData.get("photo") as File | null;
 
   // Validar documentId
   if (!documentId) {
-    cmsLogger.warn('Action: Actualización fallida: documentId requerido');
+    cmsLogger.warn("Action: Actualización fallida: documentId requerido");
     return {
       success: false,
-      message: 'Error de validación.',
+      message: "Error de validación.",
       data: fields,
-      validationErrors: { documentId: ['El ID del producto es requerido'] },
+      validationErrors: { documentId: ["El ID del producto es requerido"] },
       cmsErrors: {},
     };
   }
@@ -404,11 +504,11 @@ export async function updateProductAction(
 
     cmsLogger.warn(
       { errors: flattenedErrors.fieldErrors },
-      'Action: Actualización de producto fallida: error de validación',
+      "Action: Actualización de producto fallida: error de validación",
     );
     return {
       success: false,
-      message: 'Error de validación.',
+      message: "Error de validación.",
       data: fields,
       validationErrors: flattenedErrors.fieldErrors,
       cmsErrors: {},
@@ -420,13 +520,13 @@ export async function updateProductAction(
     let photoId: number | undefined;
     if (photoFile && photoFile.size > 0) {
       // Validar tipo de archivo
-      if (!photoFile.type.startsWith('image/')) {
+      if (!photoFile.type.startsWith("image/")) {
         return {
           success: false,
-          message: 'Error de validación.',
+          message: "Error de validación.",
           data: fields,
           validationErrors: {
-            photo: ['El archivo debe ser una imagen (jpg, png, webp, etc.)'],
+            photo: ["El archivo debe ser una imagen (jpg, png, webp, etc.)"],
           },
           cmsErrors: {},
         };
@@ -437,10 +537,10 @@ export async function updateProductAction(
       if (photoFile.size > MAX_SIZE) {
         return {
           success: false,
-          message: 'Error de validación.',
+          message: "Error de validación.",
           data: fields,
           validationErrors: {
-            photo: ['La imagen no debe superar los 5MB'],
+            photo: ["La imagen no debe superar los 5MB"],
           },
           cmsErrors: {},
         };
@@ -450,14 +550,14 @@ export async function updateProductAction(
       if (!uploadResult.success || !uploadResult.data) {
         cmsLogger.error(
           { error: uploadResult.message },
-          'Action: Error al subir la imagen del producto',
+          "Action: Error al subir la imagen del producto",
         );
         return {
           success: false,
-          message: 'Error al subir la imagen.',
+          message: "Error al subir la imagen.",
           data: fields,
           validationErrors: {
-            photo: ['No se pudo subir la imagen. Intente de nuevo.'],
+            photo: ["No se pudo subir la imagen. Intente de nuevo."],
           },
           cmsErrors: {
             status: uploadResult.status,
@@ -469,7 +569,7 @@ export async function updateProductAction(
       photoId = Number(uploadResult.data.id);
       cmsLogger.info(
         { photoId },
-        'Action: Imagen del producto subida exitosamente',
+        "Action: Imagen del producto subida exitosamente",
       );
     }
 
@@ -514,7 +614,7 @@ export async function updateProductAction(
         cmsData.state = { connect: [stateId] };
       } else {
         cmsLogger.warn(
-          'Action: No se pudo determinar el estado del producto según el stock',
+          "Action: No se pudo determinar el estado del producto según el stock",
         );
       }
     }
@@ -527,29 +627,29 @@ export async function updateProductAction(
     if (!result.success) {
       cmsLogger.error(
         { error: result.message },
-        'Action: Error al actualizar el producto en el CMS',
+        "Action: Error al actualizar el producto en el CMS",
       );
 
-      const isUniqueError = result.message?.toLowerCase().includes('unique');
+      const isUniqueError = result.message?.toLowerCase().includes("unique");
 
       return {
         success: false,
         message: isUniqueError
-          ? 'Ya existe un producto con ese nombre. Por favor use uno diferente.'
-          : 'Error al actualizar el producto.',
+          ? "Ya existe un producto con ese nombre. Por favor use uno diferente."
+          : "Error al actualizar el producto.",
         data: fields,
         validationErrors: {},
         cmsErrors: { status: result.status, message: result.message },
       };
     }
 
-    cmsLogger.info({ documentId }, 'Action: Producto actualizado exitosamente');
+    cmsLogger.info({ documentId }, "Action: Producto actualizado exitosamente");
 
-    revalidatePath('/control-panel/products');
+    revalidateTag("products", "default");
 
     return {
       success: true,
-      message: 'Producto actualizado exitosamente.',
+      message: "Producto actualizado exitosamente.",
       data: fields,
       validationErrors: {},
       cmsErrors: {},
@@ -557,11 +657,11 @@ export async function updateProductAction(
   } catch (error) {
     cmsLogger.error(
       { error },
-      'Action: Error de conexión actualizando producto',
+      "Action: Error de conexión actualizando producto",
     );
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       data: fields,
       validationErrors: {},
       cmsErrors: { status: 500 },
@@ -575,20 +675,20 @@ export async function updateProductAction(
 export async function deleteProductAction(
   formData: FormData,
 ): Promise<DeleteProductFormState> {
-  const documentId = formData.get('documentId') as string;
+  const documentId = formData.get("documentId") as string;
 
-  cmsLogger.info({ documentId }, 'Action: Iniciando eliminación de producto');
+  cmsLogger.info({ documentId }, "Action: Iniciando eliminación de producto");
 
   const fields = { documentId };
 
   // Validar documentId
   if (!documentId) {
-    cmsLogger.warn('Action: Eliminación fallida: documentId requerido');
+    cmsLogger.warn("Action: Eliminación fallida: documentId requerido");
     return {
       success: false,
-      message: 'Error de validación.',
+      message: "Error de validación.",
       data: fields,
-      validationErrors: { documentId: ['El ID del producto es requerido'] },
+      validationErrors: { documentId: ["El ID del producto es requerido"] },
       cmsErrors: {},
     };
   }
@@ -598,10 +698,10 @@ export async function deleteProductAction(
     const product = await getProductByIdAction(documentId);
 
     if (!product) {
-      cmsLogger.warn({ documentId }, 'Action: Producto no encontrado');
+      cmsLogger.warn({ documentId }, "Action: Producto no encontrado");
       return {
         success: false,
-        message: 'Producto no encontrado.',
+        message: "Producto no encontrado.",
         data: fields,
         validationErrors: {},
         cmsErrors: { status: 404 },
@@ -614,33 +714,33 @@ export async function deleteProductAction(
     if (!result.success) {
       cmsLogger.error(
         { error: result.message },
-        'Action: Error al eliminar el producto en el CMS',
+        "Action: Error al eliminar el producto en el CMS",
       );
       return {
         success: false,
-        message: 'Error al eliminar el producto.',
+        message: "Error al eliminar el producto.",
         data: fields,
         validationErrors: {},
         cmsErrors: { status: result.status, message: result.message },
       };
     }
 
-    cmsLogger.info({ documentId }, 'Action: Producto eliminado exitosamente');
+    cmsLogger.info({ documentId }, "Action: Producto eliminado exitosamente");
 
-    revalidatePath('/control-panel/products');
+    revalidateTag("products", "default");
 
     return {
       success: true,
-      message: 'Producto eliminado exitosamente.',
+      message: "Producto eliminado exitosamente.",
       data: fields,
       validationErrors: {},
       cmsErrors: {},
     };
   } catch (error) {
-    cmsLogger.error({ error }, 'Action: Error de conexión eliminando producto');
+    cmsLogger.error({ error }, "Action: Error de conexión eliminando producto");
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       data: fields,
       validationErrors: {},
       cmsErrors: { status: 500 },
@@ -657,26 +757,26 @@ export async function toggleRetireProductAction(
     let newStateId: string | null;
     let actionLabel: string;
 
-    if (currentStateName === 'RETIRED') {
+    if (currentStateName === "RETIRED") {
       // Reactivar: STOCK si tiene stock, NO_STOCK si no
       if (stock > 0) {
         newStateId = await PRODUCT_STATES.STOCK();
-        actionLabel = 'reactivado (En stock)';
+        actionLabel = "reactivado (En stock)";
       } else {
         newStateId = await PRODUCT_STATES.NO_STOCK();
-        actionLabel = 'reactivado (Sin stock)';
+        actionLabel = "reactivado (Sin stock)";
       }
     } else {
       // Retirar
       newStateId = await PRODUCT_STATES.RETIRED();
-      actionLabel = 'retirado';
+      actionLabel = "retirado";
     }
 
     if (!newStateId) {
-      cmsLogger.error('Action: No se pudo obtener el documentId del estado');
+      cmsLogger.error("Action: No se pudo obtener el documentId del estado");
       return {
         success: false,
-        message: 'No se pudo determinar el nuevo estado.',
+        message: "No se pudo determinar el nuevo estado.",
       };
     }
 
@@ -691,27 +791,27 @@ export async function toggleRetireProductAction(
     if (!result.success) {
       cmsLogger.error(
         { error: result.message },
-        'Action: Error al cambiar el estado del producto',
+        "Action: Error al cambiar el estado del producto",
       );
       return {
         success: false,
-        message: 'Error al cambiar el estado del producto.',
+        message: "Error al cambiar el estado del producto.",
       };
     }
 
     cmsLogger.info(
       { documentId, actionLabel },
-      'Action: Estado del producto actualizado',
+      "Action: Estado del producto actualizado",
     );
-    revalidatePath('/control-panel/products');
+    revalidateTag("products", "default");
 
     return { success: true, message: `Producto ${actionLabel} exitosamente.` };
   } catch (error) {
     cmsLogger.error(
       { error },
-      'Action: Error de conexión cambiando estado del producto',
+      "Action: Error de conexión cambiando estado del producto",
     );
-    return { success: false, message: 'Error de conexión con el servidor.' };
+    return { success: false, message: "Error de conexión con el servidor." };
   }
 }
 
@@ -723,13 +823,13 @@ export async function createProductsBulkAction(
 ): Promise<BulkUploadFormState> {
   cmsLogger.info(
     { count: records.length },
-    'Action: Iniciando creación masiva de productos',
+    "Action: Iniciando creación masiva de productos",
   );
 
   if (!records.length) {
     return {
       success: false,
-      message: 'No hay registros para crear.',
+      message: "No hay registros para crear.",
       created: 0,
       failed: 0,
     };
@@ -769,13 +869,13 @@ export async function createProductsBulkAction(
 
     const result = await postContentBulk(cmsApi.PRODUCTS, items);
 
-    revalidatePath('/control-panel/products');
+    revalidateTag("products", "default");
 
     const allSucceeded = result.failedCount === 0;
 
     cmsLogger.info(
       { created: result.successCount, failed: result.failedCount },
-      'Action: Creación masiva de productos completada',
+      "Action: Creación masiva de productos completada",
     );
 
     return {
@@ -789,11 +889,11 @@ export async function createProductsBulkAction(
   } catch (error) {
     cmsLogger.error(
       { error },
-      'Action: Error de conexión en creación masiva de productos',
+      "Action: Error de conexión en creación masiva de productos",
     );
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       created: 0,
       failed: records.length,
       cmsErrors: { status: 500 },
@@ -805,7 +905,7 @@ export async function createProductsBulkAction(
  * Eliminar todos los productos (para reemplazo masivo)
  */
 export async function deleteAllProductsAction(): Promise<BulkUploadFormState> {
-  cmsLogger.info('Action: Iniciando eliminación de todos los productos');
+  cmsLogger.info("Action: Iniciando eliminación de todos los productos");
 
   try {
     const content = await getContent<Product[]>(cmsApi.PRODUCTS);
@@ -813,7 +913,7 @@ export async function deleteAllProductsAction(): Promise<BulkUploadFormState> {
     if (!content.success || !content.data) {
       return {
         success: false,
-        message: 'Error al obtener los productos existentes.',
+        message: "Error al obtener los productos existentes.",
         deleted: 0,
         cmsErrors: { status: content.status },
       };
@@ -826,18 +926,18 @@ export async function deleteAllProductsAction(): Promise<BulkUploadFormState> {
     if (documentIds.length === 0) {
       return {
         success: true,
-        message: 'No hay productos para eliminar.',
+        message: "No hay productos para eliminar.",
         deleted: 0,
       };
     }
 
     const result = await deleteContentBulk(cmsApi.PRODUCTS, documentIds);
 
-    revalidatePath('/control-panel/products');
+    revalidateTag("products", "default");
 
     cmsLogger.info(
       { deleted: result.successCount, failed: result.failedCount },
-      'Action: Eliminación masiva de productos completada',
+      "Action: Eliminación masiva de productos completada",
     );
 
     return {
@@ -852,11 +952,11 @@ export async function deleteAllProductsAction(): Promise<BulkUploadFormState> {
   } catch (error) {
     cmsLogger.error(
       { error },
-      'Action: Error de conexión eliminando todos los productos',
+      "Action: Error de conexión eliminando todos los productos",
     );
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       deleted: 0,
       cmsErrors: { status: 500 },
     };
@@ -872,21 +972,25 @@ export async function deleteProductsBulkAction(
 ): Promise<BulkUploadFormState> {
   cmsLogger.info(
     { count: documentIds.length },
-    'Action: Iniciando eliminación masiva de productos seleccionados',
+    "Action: Iniciando eliminación masiva de productos seleccionados",
   );
 
   if (!documentIds.length) {
-    return { success: false, message: 'No hay registros seleccionados.', deleted: 0 };
+    return {
+      success: false,
+      message: "No hay registros seleccionados.",
+      deleted: 0,
+    };
   }
 
   try {
     const result = await deleteContentBulk(cmsApi.PRODUCTS, documentIds);
 
-    revalidatePath('/control-panel/products');
+    revalidateTag("products", "default");
 
     cmsLogger.info(
       { deleted: result.successCount, failed: result.failedCount },
-      'Action: Eliminación masiva de productos seleccionados completada',
+      "Action: Eliminación masiva de productos seleccionados completada",
     );
 
     return {
@@ -899,10 +1003,13 @@ export async function deleteProductsBulkAction(
       failed: result.failedCount,
     };
   } catch (error) {
-    cmsLogger.error({ error }, 'Action: Error en eliminación masiva de productos seleccionados');
+    cmsLogger.error(
+      { error },
+      "Action: Error en eliminación masiva de productos seleccionados",
+    );
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       deleted: 0,
       cmsErrors: { status: 500 },
     };
@@ -927,11 +1034,15 @@ export async function updateProductsBulkAction(
 ): Promise<BulkUploadFormState> {
   cmsLogger.info(
     { count: documentIds.length, fields: Object.keys(data) },
-    'Action: Iniciando actualización masiva de productos',
+    "Action: Iniciando actualización masiva de productos",
   );
 
   if (!documentIds.length) {
-    return { success: false, message: 'No hay registros seleccionados.', created: 0 };
+    return {
+      success: false,
+      message: "No hay registros seleccionados.",
+      created: 0,
+    };
   }
 
   // Construir el objeto CMS con el formato correcto para relaciones
@@ -971,16 +1082,16 @@ export async function updateProductsBulkAction(
         failedCount++;
         cmsLogger.warn(
           { documentId, error: result.message },
-          'Action: Error al actualizar producto en actualización masiva',
+          "Action: Error al actualizar producto en actualización masiva",
         );
       }
     }
 
-    revalidatePath('/control-panel/products');
+    revalidateTag("products", "default");
 
     cmsLogger.info(
       { updated: successCount, failed: failedCount },
-      'Action: Actualización masiva de productos completada',
+      "Action: Actualización masiva de productos completada",
     );
 
     return {
@@ -993,10 +1104,13 @@ export async function updateProductsBulkAction(
       failed: failedCount,
     };
   } catch (error) {
-    cmsLogger.error({ error }, 'Action: Error en actualización masiva de productos');
+    cmsLogger.error(
+      { error },
+      "Action: Error en actualización masiva de productos",
+    );
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       created: 0,
       cmsErrors: { status: 500 },
     };

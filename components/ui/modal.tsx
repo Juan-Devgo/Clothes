@@ -50,13 +50,13 @@ export default function Modal({
     >
       <div
         ref={modalRef}
-        className="minimal-scrollbar relative bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] m-4 overflow-auto"
+        className="minimal-scrollbar relative bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] m-2 sm:m-4 overflow-auto"
         role="dialog"
         aria-modal="true"
       >
         <div className="flex items-center justify-between p-4 border-b">
           {title && (
-            <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
+            <h2 className="text-base sm:text-xl font-semibold text-gray-800">{title}</h2>
           )}
           <button
             onClick={onClose}

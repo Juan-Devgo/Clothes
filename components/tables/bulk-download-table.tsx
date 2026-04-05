@@ -1,25 +1,21 @@
 import { DownloadIcon } from "../icons/download";
 
-interface DownloadDataTableProps {
-  renderValue?: React.ReactNode;
-  setDownloadModalOpen?: (open: boolean) => void;
-}
-
-export default function DownloadDataTable({
+export default function BulkDownloadTable({
   renderValue,
-  setDownloadModalOpen,
-}: DownloadDataTableProps) {
+  setBulkDownloadModalOpen,
+}: {
+  renderValue: React.ReactNode;
+  setBulkDownloadModalOpen: (open: boolean) => void;
+}) {
   return (
     <>
       <button
         className="bg-indigo-600 text-white font-semibold text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-md hover:bg-indigo-700 items-center justify-center flex gap-0.5 cursor-pointer transition-colors"
-        onClick={() => setDownloadModalOpen?.(true)}
+        onClick={() => setBulkDownloadModalOpen?.(true)}
       >
         <DownloadIcon />
-        <span className="hidden sm:inline">Descargar Datos</span>
+        <span className="hidden sm:inline">Descargar selección</span>
       </button>
-
-      {/* Componente de descarga de datos */}
       {renderValue}
     </>
   );

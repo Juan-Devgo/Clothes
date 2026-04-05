@@ -1,4 +1,4 @@
-import z from 'zod';
+import * as z from 'zod';
 import { CreateProductSchema, UpdateProductSchema } from './schemas';
 
 export type CreateProductData = z.infer<typeof CreateProductSchema>;

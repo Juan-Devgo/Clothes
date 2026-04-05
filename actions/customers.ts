@@ -1,33 +1,34 @@
-'use server';
+"use server";
 
-import { revalidatePath } from 'next/cache';
-import { cmsApi } from '@/lib/paths';
-import { cmsLogger } from '@/lib/logger';
-import { Customer } from '@/types';
+import { revalidateTag, cacheLife, cacheTag } from "next/cache";
+import { cmsApi } from "@/lib/paths";
+import { cmsLogger } from "@/lib/logger";
+import { Customer } from "@/types";
+import { getAuthToken } from "@/service/auth";
 import {
   getContent,
   postContent,
   putContent,
   deleteContent,
   deleteContentBulk,
-} from '@/service/cms';
-import qs from 'qs';
+} from "@/service/cms";
+import qs from "qs";
 import {
   createAccountForCustomerAction,
   deleteAccountAction,
-} from './accounts';
-import { z } from 'zod';
+} from "./accounts";
+import { z } from "zod";
 import {
   CreateCustomerSchema,
   UpdateCustomerSchema,
-} from '@/types/customer/schemas';
+} from "@/types/customer/schemas";
 import {
   CreateCustomerFormState,
   UpdateCustomerFormState,
   DeleteCustomerFormState,
-} from '@/types/customer/forms';
-import { BulkUploadFormState } from '@/types/shared/bulk';
-import { CustomerExcelRow } from '@/types/customer/excel-schemas';
+} from "@/types/customer/forms";
+import { BulkUploadFormState } from "@/types/shared/bulk";
+import { CustomerExcelRow } from "@/types/customer/excel-schemas";
 
 /**
  * Obtener la lista de clientes
@@ -37,13 +38,13 @@ export async function getCustomersAction() {
     {
       populate: {
         account: {
-          fields: ['documentId'],
+          fields: ["documentId"],
         },
         sales: {
-          fields: ['documentId'],
+          fields: ["documentId"],
         },
         events: {
-          fields: ['documentId'],
+          fields: ["documentId"],
         },
       },
     },
@@ -55,23 +56,182 @@ export async function getCustomersAction() {
 }
 
 /**
+ * Parámetros para obtener clientes paginados
+ */
+export interface PaginatedCustomersParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  sortField?: string;
+  sortDirection?: "asc" | "desc";
+  searchableFields?: string[];
+}
+
+export interface PaginatedCustomersResult {
+  data: Customer[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+}
+
+async function cachedFetchCustomers(
+  token: string,
+  queryString: string,
+  page: number,
+  pageSize: number,
+): Promise<PaginatedCustomersResult> {
+  "use cache";
+  cacheLife({ stale: 0, revalidate: 30, expire: 60 });
+  cacheTag("customers");
+
+  const response = await fetch(`${cmsApi.CUSTOMERS}?${queryString}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    return { data: [], total: 0, page, pageSize, pageCount: 0 };
+  }
+
+  const rawData = await response.json();
+  return {
+    data: (rawData?.data as Customer[]) ?? [],
+    total: rawData?.meta?.pagination?.total ?? 0,
+    page: rawData?.meta?.pagination?.page ?? page,
+    pageSize: rawData?.meta?.pagination?.pageSize ?? pageSize,
+    pageCount: rawData?.meta?.pagination?.pageCount ?? 0,
+  };
+}
+
+/**
+ * Calcula los días que faltan desde hoy hasta el cumpleaños (ignorando el año).
+ * Hoy = 0, mañana = 1, ..., ayer = 364.
+ * Clientes sin birthdate reciben Infinity para quedar al final.
+ */
+function birthdayDistanceFromToday(birthdate: string | null | undefined): number {
+  if (!birthdate) return Infinity;
+  const today = new Date();
+  const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const dayOfYear = (month: number, day: number) => {
+    let d = 0;
+    for (let m = 0; m < month; m++) d += daysInMonth[m];
+    return d + day;
+  };
+  const todayDoy = dayOfYear(today.getMonth(), today.getDate());
+  const bd = new Date(birthdate + "T00:00:00");
+  const bdDoy = dayOfYear(bd.getMonth(), bd.getDate());
+  let diff = bdDoy - todayDoy;
+  if (diff < 0) diff += 365;
+  return diff;
+}
+
+/**
+ * Obtener clientes con paginación, búsqueda y ordenamiento server-side
+ */
+export async function getCustomersPaginatedAction(
+  params: PaginatedCustomersParams = {},
+): Promise<PaginatedCustomersResult> {
+  const token = await getAuthToken();
+  if (!token) {
+    return { data: [], total: 0, page: 1, pageSize: 10, pageCount: 0 };
+  }
+
+  const {
+    page = 1,
+    pageSize = 10,
+    search = "",
+    sortField,
+    sortDirection = "asc",
+    searchableFields = ["first_name", "last_name"],
+  } = params;
+
+  const baseFields = {
+    fields: ["first_name", "last_name", "phone", "email", "birthdate", "documentId"],
+    populate: {
+      account: { fields: ["documentId"] },
+    },
+  } as const;
+
+  const filters = search.trim()
+    ? {
+        $or: searchableFields.map((field) => {
+          const parts = field.split(".");
+          if (parts.length === 2) {
+            return { [parts[0]]: { [parts[1]]: { $containsi: search } } };
+          }
+          return { [field]: { $containsi: search } };
+        }),
+      }
+    : undefined;
+
+  // El orden por cumpleaños (mes-día más cercano a hoy) no es soportable por el CMS,
+  // por lo que se resuelve trayendo todos los registros y ordenando manualmente.
+  if (sortField === "birthdate") {
+    const allQueryObj: Record<string, unknown> = {
+      ...baseFields,
+      pagination: { page: 1, pageSize: 9999 },
+    };
+    if (filters) allQueryObj.filters = filters;
+
+    const allQueryString = qs.stringify(allQueryObj, { encodeValuesOnly: true });
+    const allResult = await cachedFetchCustomers(token, allQueryString, 1, 9999);
+
+    const sorted = [...allResult.data].sort((a, b) => {
+      const diff =
+        birthdayDistanceFromToday(a.birthdate) -
+        birthdayDistanceFromToday(b.birthdate);
+      return sortDirection === "asc" ? diff : -diff;
+    });
+
+    const start = (page - 1) * pageSize;
+    return {
+      data: sorted.slice(start, start + pageSize),
+      total: sorted.length,
+      page,
+      pageSize,
+      pageCount: Math.ceil(sorted.length / pageSize),
+    };
+  }
+
+  const queryObj: Record<string, unknown> = {
+    ...baseFields,
+    pagination: { page, pageSize },
+  };
+
+  if (sortField) {
+    queryObj.sort = [`${sortField}:${sortDirection}`];
+  }
+
+  if (filters) {
+    queryObj.filters = filters;
+  }
+
+  const queryString = qs.stringify(queryObj, { encodeValuesOnly: true });
+  return cachedFetchCustomers(token, queryString, page, pageSize);
+}
+
+/**
  * Crear un nuevo cliente con su cuenta asociada
  */
 export async function createCustomerAction(
   formData: FormData,
 ): Promise<CreateCustomerFormState> {
   cmsLogger.info(
-    { email: formData.get('email') },
-    'Action: Iniciando creación de cliente',
+    { email: formData.get("email") },
+    "Action: Iniciando creación de cliente",
   );
 
   const fields = {
-    first_name: formData.get('first_name') as string,
-    last_name: formData.get('last_name') as string,
-    email: (formData.get('email') as string) || undefined,
-    phone: formData.get('phone') as string,
-    birthdate: (formData.get('birthdate') as string) || undefined,
-    tastes: (formData.get('tastes') as string) || undefined,
+    first_name: formData.get("first_name") as string,
+    last_name: formData.get("last_name") as string,
+    email: (formData.get("email") as string) || undefined,
+    phone: formData.get("phone") as string,
+    birthdate: (formData.get("birthdate") as string) || undefined,
+    tastes: (formData.get("tastes") as string) || undefined,
   };
 
   // Validación de los datos
@@ -82,11 +242,11 @@ export async function createCustomerAction(
 
     cmsLogger.warn(
       { errors: flattenedErrors.fieldErrors },
-      'Action: Creación de cliente fallida: error de validación',
+      "Action: Creación de cliente fallida: error de validación",
     );
     return {
       success: false,
-      message: 'Error de validación.',
+      message: "Error de validación.",
       data: fields,
       validationErrors: flattenedErrors.fieldErrors,
       cmsErrors: {},
@@ -102,16 +262,16 @@ export async function createCustomerAction(
     if (!result.success || !result.data) {
       cmsLogger.error(
         { error: result.message },
-        'Action: Error al crear el cliente en el CMS',
+        "Action: Error al crear el cliente en el CMS",
       );
 
-      const isUniqueError = result.message?.toLowerCase().includes('unique');
+      const isUniqueError = result.message?.toLowerCase().includes("unique");
 
       return {
         success: false,
         message: isUniqueError
-          ? 'Ya existe un cliente con ese correo electrónico o teléfono. Verifique los datos.'
-          : 'Error al crear el cliente.',
+          ? "Ya existe un cliente con ese correo electrónico o teléfono. Verifique los datos."
+          : "Error al crear el cliente.",
         data: fields,
         validationErrors: {},
         cmsErrors: { status: result.status, message: result.message },
@@ -121,7 +281,7 @@ export async function createCustomerAction(
     const newCustomer = result.data;
     cmsLogger.info(
       { customerId: newCustomer.documentId },
-      'Action: Cliente creado exitosamente',
+      "Action: Cliente creado exitosamente",
     );
 
     let accountId: string | undefined;
@@ -136,25 +296,25 @@ export async function createCustomerAction(
         accountId = accountResult.accountId;
         cmsLogger.info(
           { accountId: accountResult.accountId },
-          'Action: Cuenta creada para el cliente',
+          "Action: Cuenta creada para el cliente",
         );
       } else {
         cmsLogger.warn(
           { error: accountResult.error },
-          'Action: Error creando cuenta para el cliente',
+          "Action: Error creando cuenta para el cliente",
         );
       }
     }
 
-    revalidatePath('/control-panel/customers');
+    revalidateTag("customers", "default");
 
     cmsLogger.info(
       { customerId: newCustomer.documentId },
-      'Action: Creación de cliente completada exitosamente',
+      "Action: Creación de cliente completada exitosamente",
     );
     return {
       success: true,
-      message: 'Cliente creado exitosamente.',
+      message: "Cliente creado exitosamente.",
       data: fields,
       validationErrors: {},
       cmsErrors: {},
@@ -162,10 +322,10 @@ export async function createCustomerAction(
       accountId,
     };
   } catch (error) {
-    cmsLogger.error({ error }, 'Action: Error de conexión creando cliente');
+    cmsLogger.error({ error }, "Action: Error de conexión creando cliente");
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       data: fields,
       validationErrors: {},
       cmsErrors: { status: 500 },
@@ -179,28 +339,28 @@ export async function createCustomerAction(
 export async function updateCustomerAction(
   formData: FormData,
 ): Promise<UpdateCustomerFormState> {
-  const documentId = formData.get('documentId') as string;
+  const documentId = formData.get("documentId") as string;
 
-  cmsLogger.info({ documentId }, 'Action: Iniciando actualización de cliente');
+  cmsLogger.info({ documentId }, "Action: Iniciando actualización de cliente");
 
   const fields = {
     documentId,
-    first_name: (formData.get('first_name') as string) || undefined,
-    last_name: (formData.get('last_name') as string) || undefined,
-    email: (formData.get('email') as string) || undefined,
-    phone: (formData.get('phone') as string) || undefined,
-    birthdate: (formData.get('birthdate') as string) || undefined,
-    tastes: (formData.get('tastes') as string) || undefined,
+    first_name: (formData.get("first_name") as string) || undefined,
+    last_name: (formData.get("last_name") as string) || undefined,
+    email: (formData.get("email") as string) || undefined,
+    phone: (formData.get("phone") as string) || undefined,
+    birthdate: (formData.get("birthdate") as string) || undefined,
+    tastes: (formData.get("tastes") as string) || undefined,
   };
 
   // Validar documentId
   if (!documentId) {
-    cmsLogger.warn('Action: Actualización fallida: documentId requerido');
+    cmsLogger.warn("Action: Actualización fallida: documentId requerido");
     return {
       success: false,
-      message: 'Error de validación.',
+      message: "Error de validación.",
       data: fields,
-      validationErrors: { documentId: ['El ID del cliente es requerido'] },
+      validationErrors: { documentId: ["El ID del cliente es requerido"] },
       cmsErrors: {},
     };
   }
@@ -213,11 +373,11 @@ export async function updateCustomerAction(
 
     cmsLogger.warn(
       { errors: flattenedErrors.fieldErrors },
-      'Action: Actualización de cliente fallida: error de validación',
+      "Action: Actualización de cliente fallida: error de validación",
     );
     return {
       success: false,
-      message: 'Error de validación.',
+      message: "Error de validación.",
       data: fields,
       validationErrors: flattenedErrors.fieldErrors,
       cmsErrors: {},
@@ -233,29 +393,29 @@ export async function updateCustomerAction(
     if (!result.success) {
       cmsLogger.error(
         { error: result.message },
-        'Action: Error al actualizar el cliente en el CMS',
+        "Action: Error al actualizar el cliente en el CMS",
       );
 
-      const isUniqueError = result.message?.toLowerCase().includes('unique');
+      const isUniqueError = result.message?.toLowerCase().includes("unique");
 
       return {
         success: false,
         message: isUniqueError
-          ? 'Ya existe un cliente con ese correo electrónico o teléfono. Verifique los datos.'
-          : 'Error al actualizar el cliente.',
+          ? "Ya existe un cliente con ese correo electrónico o teléfono. Verifique los datos."
+          : "Error al actualizar el cliente.",
         data: fields,
         validationErrors: {},
         cmsErrors: { status: result.status, message: result.message },
       };
     }
 
-    cmsLogger.info({ documentId }, 'Action: Cliente actualizado exitosamente');
+    cmsLogger.info({ documentId }, "Action: Cliente actualizado exitosamente");
 
-    revalidatePath('/control-panel/customers');
+    revalidateTag("customers", "default");
 
     return {
       success: true,
-      message: 'Cliente actualizado exitosamente.',
+      message: "Cliente actualizado exitosamente.",
       data: fields,
       validationErrors: {},
       cmsErrors: {},
@@ -263,11 +423,11 @@ export async function updateCustomerAction(
   } catch (error) {
     cmsLogger.error(
       { error },
-      'Action: Error de conexión actualizando cliente',
+      "Action: Error de conexión actualizando cliente",
     );
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       data: fields,
       validationErrors: {},
       cmsErrors: { status: 500 },
@@ -284,7 +444,7 @@ async function getCustomerById(documentId: string): Promise<Customer | null> {
       {
         populate: {
           account: {
-            fields: ['documentId'],
+            fields: ["documentId"],
           },
         },
       },
@@ -309,20 +469,20 @@ async function getCustomerById(documentId: string): Promise<Customer | null> {
 export async function deleteCustomerAction(
   formData: FormData,
 ): Promise<DeleteCustomerFormState> {
-  const documentId = formData.get('documentId') as string;
+  const documentId = formData.get("documentId") as string;
 
-  cmsLogger.info({ documentId }, 'Action: Iniciando eliminación de cliente');
+  cmsLogger.info({ documentId }, "Action: Iniciando eliminación de cliente");
 
   const fields = { documentId };
 
   // Validar documentId
   if (!documentId) {
-    cmsLogger.warn('Action: Eliminación fallida: documentId requerido');
+    cmsLogger.warn("Action: Eliminación fallida: documentId requerido");
     return {
       success: false,
-      message: 'Error de validación.',
+      message: "Error de validación.",
       data: fields,
-      validationErrors: { documentId: ['El ID del cliente es requerido'] },
+      validationErrors: { documentId: ["El ID del cliente es requerido"] },
       cmsErrors: {},
     };
   }
@@ -332,10 +492,10 @@ export async function deleteCustomerAction(
     const customer = await getCustomerById(documentId);
 
     if (!customer) {
-      cmsLogger.warn({ documentId }, 'Action: Cliente no encontrado');
+      cmsLogger.warn({ documentId }, "Action: Cliente no encontrado");
       return {
         success: false,
-        message: 'Cliente no encontrado.',
+        message: "Cliente no encontrado.",
         data: fields,
         validationErrors: {},
         cmsErrors: { status: 404 },
@@ -353,13 +513,13 @@ export async function deleteCustomerAction(
       if (!accountResult.success) {
         cmsLogger.warn(
           { error: accountResult.error },
-          'Action: Error eliminando cuenta asociada al cliente',
+          "Action: Error eliminando cuenta asociada al cliente",
         );
         // Continuamos con la eliminación del cliente aunque falle la cuenta
       } else {
         cmsLogger.info(
           { accountId: accountDocumentId },
-          'Action: Cuenta asociada eliminada',
+          "Action: Cuenta asociada eliminada",
         );
       }
     }
@@ -370,33 +530,33 @@ export async function deleteCustomerAction(
     if (!result.success) {
       cmsLogger.error(
         { error: result.message },
-        'Action: Error al eliminar el cliente en el CMS',
+        "Action: Error al eliminar el cliente en el CMS",
       );
       return {
         success: false,
-        message: 'Error al eliminar el cliente.',
+        message: "Error al eliminar el cliente.",
         data: fields,
         validationErrors: {},
         cmsErrors: { status: result.status, message: result.message },
       };
     }
 
-    cmsLogger.info({ documentId }, 'Action: Cliente eliminado exitosamente');
+    cmsLogger.info({ documentId }, "Action: Cliente eliminado exitosamente");
 
-    revalidatePath('/control-panel/customers');
+    revalidateTag("customers", "default");
 
     return {
       success: true,
-      message: 'Cliente eliminado exitosamente.',
+      message: "Cliente eliminado exitosamente.",
       data: fields,
       validationErrors: {},
       cmsErrors: {},
     };
   } catch (error) {
-    cmsLogger.error({ error }, 'Action: Error de conexión eliminando cliente');
+    cmsLogger.error({ error }, "Action: Error de conexión eliminando cliente");
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       data: fields,
       validationErrors: {},
       cmsErrors: { status: 500 },
@@ -413,13 +573,13 @@ export async function createCustomersBulkAction(
 ): Promise<BulkUploadFormState> {
   cmsLogger.info(
     { count: records.length },
-    'Action: Iniciando creación masiva de clientes',
+    "Action: Iniciando creación masiva de clientes",
   );
 
   if (!records.length) {
     return {
       success: false,
-      message: 'No hay registros para crear.',
+      message: "No hay registros para crear.",
       created: 0,
       failed: 0,
     };
@@ -439,7 +599,7 @@ export async function createCustomersBulkAction(
         if (!result.success || !result.data) {
           cmsLogger.warn(
             { error: result.message },
-            'Action: Error al crear cliente en creación masiva',
+            "Action: Error al crear cliente en creación masiva",
           );
           failedCount++;
           continue;
@@ -460,7 +620,7 @@ export async function createCustomersBulkAction(
                 customerId: newCustomer.documentId,
                 accountId: accountResult.accountId,
               },
-              'Action: Cuenta creada para cliente en creación masiva',
+              "Action: Cuenta creada para cliente en creación masiva",
             );
           } else {
             cmsLogger.warn(
@@ -468,26 +628,26 @@ export async function createCustomersBulkAction(
                 customerId: newCustomer.documentId,
                 error: accountResult.error,
               },
-              'Action: Error creando cuenta para cliente en creación masiva',
+              "Action: Error creando cuenta para cliente en creación masiva",
             );
           }
         }
       } catch (error) {
         cmsLogger.warn(
           { error },
-          'Action: Error procesando registro en creación masiva',
+          "Action: Error procesando registro en creación masiva",
         );
         failedCount++;
       }
     }
 
-    revalidatePath('/control-panel/customers');
+    revalidateTag("customers", "default");
 
     const allSucceeded = failedCount === 0;
 
     cmsLogger.info(
       { created: successCount, failed: failedCount },
-      'Action: Creación masiva de clientes completada',
+      "Action: Creación masiva de clientes completada",
     );
 
     return {
@@ -501,11 +661,11 @@ export async function createCustomersBulkAction(
   } catch (error) {
     cmsLogger.error(
       { error },
-      'Action: Error de conexión en creación masiva de clientes',
+      "Action: Error de conexión en creación masiva de clientes",
     );
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       created: 0,
       failed: records.length,
       cmsErrors: { status: 500 },
@@ -517,7 +677,7 @@ export async function createCustomersBulkAction(
  * Eliminar todos los clientes (para reemplazo masivo)
  */
 export async function deleteAllCustomersAction(): Promise<BulkUploadFormState> {
-  cmsLogger.info('Action: Iniciando eliminación de todos los clientes');
+  cmsLogger.info("Action: Iniciando eliminación de todos los clientes");
 
   try {
     const content = await getContent<Customer[]>(cmsApi.CUSTOMERS);
@@ -525,7 +685,7 @@ export async function deleteAllCustomersAction(): Promise<BulkUploadFormState> {
     if (!content.success || !content.data) {
       return {
         success: false,
-        message: 'Error al obtener los clientes existentes.',
+        message: "Error al obtener los clientes existentes.",
         deleted: 0,
         cmsErrors: { status: content.status },
       };
@@ -538,18 +698,18 @@ export async function deleteAllCustomersAction(): Promise<BulkUploadFormState> {
     if (documentIds.length === 0) {
       return {
         success: true,
-        message: 'No hay clientes para eliminar.',
+        message: "No hay clientes para eliminar.",
         deleted: 0,
       };
     }
 
     const result = await deleteContentBulk(cmsApi.CUSTOMERS, documentIds);
 
-    revalidatePath('/control-panel/customers');
+    revalidateTag("customers", "default");
 
     cmsLogger.info(
       { deleted: result.successCount, failed: result.failedCount },
-      'Action: Eliminación masiva de clientes completada',
+      "Action: Eliminación masiva de clientes completada",
     );
 
     return {
@@ -564,11 +724,11 @@ export async function deleteAllCustomersAction(): Promise<BulkUploadFormState> {
   } catch (error) {
     cmsLogger.error(
       { error },
-      'Action: Error de conexión eliminando todos los clientes',
+      "Action: Error de conexión eliminando todos los clientes",
     );
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       deleted: 0,
       cmsErrors: { status: 500 },
     };
@@ -584,21 +744,25 @@ export async function deleteCustomersBulkAction(
 ): Promise<BulkUploadFormState> {
   cmsLogger.info(
     { count: documentIds.length },
-    'Action: Iniciando eliminación masiva de clientes seleccionados',
+    "Action: Iniciando eliminación masiva de clientes seleccionados",
   );
 
   if (!documentIds.length) {
-    return { success: false, message: 'No hay registros seleccionados.', deleted: 0 };
+    return {
+      success: false,
+      message: "No hay registros seleccionados.",
+      deleted: 0,
+    };
   }
 
   try {
     const result = await deleteContentBulk(cmsApi.CUSTOMERS, documentIds);
 
-    revalidatePath('/control-panel/customers');
+    revalidateTag("customers", "default");
 
     cmsLogger.info(
       { deleted: result.successCount, failed: result.failedCount },
-      'Action: Eliminación masiva de clientes seleccionados completada',
+      "Action: Eliminación masiva de clientes seleccionados completada",
     );
 
     return {
@@ -611,10 +775,13 @@ export async function deleteCustomersBulkAction(
       failed: result.failedCount,
     };
   } catch (error) {
-    cmsLogger.error({ error }, 'Action: Error en eliminación masiva de clientes seleccionados');
+    cmsLogger.error(
+      { error },
+      "Action: Error en eliminación masiva de clientes seleccionados",
+    );
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       deleted: 0,
       cmsErrors: { status: 500 },
     };
@@ -638,11 +805,15 @@ export async function updateCustomersBulkAction(
 ): Promise<BulkUploadFormState> {
   cmsLogger.info(
     { count: documentIds.length, fields: Object.keys(data) },
-    'Action: Iniciando actualización masiva de clientes',
+    "Action: Iniciando actualización masiva de clientes",
   );
 
   if (!documentIds.length) {
-    return { success: false, message: 'No hay registros seleccionados.', created: 0 };
+    return {
+      success: false,
+      message: "No hay registros seleccionados.",
+      created: 0,
+    };
   }
 
   let successCount = 0;
@@ -661,16 +832,16 @@ export async function updateCustomersBulkAction(
         failedCount++;
         cmsLogger.warn(
           { documentId, error: result.message },
-          'Action: Error al actualizar cliente en actualización masiva',
+          "Action: Error al actualizar cliente en actualización masiva",
         );
       }
     }
 
-    revalidatePath('/control-panel/customers');
+    revalidateTag("customers", "default");
 
     cmsLogger.info(
       { updated: successCount, failed: failedCount },
-      'Action: Actualización masiva de clientes completada',
+      "Action: Actualización masiva de clientes completada",
     );
 
     return {
@@ -683,10 +854,13 @@ export async function updateCustomersBulkAction(
       failed: failedCount,
     };
   } catch (error) {
-    cmsLogger.error({ error }, 'Action: Error en actualización masiva de clientes');
+    cmsLogger.error(
+      { error },
+      "Action: Error en actualización masiva de clientes",
+    );
     return {
       success: false,
-      message: 'Error de conexión con el servidor.',
+      message: "Error de conexión con el servidor.",
       created: 0,
       cmsErrors: { status: 500 },
     };

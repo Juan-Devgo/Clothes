@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import Table from '@/components/tables/table';
-import { ProductDetail } from '@/types';
+import Table from "@/components/tables/table";
+import { ProductDetail } from "@/types";
 
 interface AccountProductsTabProps {
   products: ProductDetail[];
@@ -12,29 +12,29 @@ export default function AccountProductsTab({
 }: AccountProductsTabProps) {
   const columns = [
     {
-      name: 'Producto',
-      selector: (row: ProductDetail) => row.product?.name,
+      name: "Producto",
+      selector: (row: ProductDetail) => row.product?.name ?? "-",
       sortable: true,
     },
     {
-      name: 'Precio',
+      name: "Precio",
       selector: (row: ProductDetail) =>
         `${row.product?.currency} ${row.product?.price.toLocaleString()}`,
       sortable: true,
     },
     {
-      name: 'Categoría',
-      selector: (row: ProductDetail) => row.product?.category?.name || '-',
+      name: "Categoría",
+      selector: (row: ProductDetail) => row.product?.category?.name || "-",
       sortable: true,
     },
     {
-      name: 'Estado',
-      selector: (row: ProductDetail) => row.state?.name || '-',
+      name: "Estado",
+      selector: (row: ProductDetail) => row.state?.name || "-",
       sortable: true,
     },
   ];
 
-  const filterableColumns = [{ id: 1, column: 'name', name: 'Nombre' }];
+  const filterableColumns = [{ id: 1, column: "name", name: "Nombre" }];
 
   if (products.length === 0) {
     return (

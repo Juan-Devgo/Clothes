@@ -287,6 +287,53 @@ export async function getContent<T = unknown>(
   }
 }
 
+export async function getContentWithMeta<T = unknown>(
+  url: string,
+): Promise<ContentResponse<T>> {
+  const authToken = await getAuthToken();
+
+  if (!authToken) {
+    cmsLogger.warn({ url }, 'CMS: Token no encontrado - No autorizado');
+    return {
+      success: false,
+      status: 401,
+      message: 'No autorizado - Token no encontrado',
+    };
+  }
+
+  cmsLogger.info({ url }, 'CMS: Obteniendo contenido paginado');
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      cmsLogger.warn(
+        { url, status: response.status },
+        'CMS: Error obteniendo contenido paginado',
+      );
+      return {
+        success: false,
+        status: response.status,
+        message: response.statusText,
+      };
+    }
+
+    const data = await response.json();
+
+    cmsLogger.info({ url }, 'CMS: Contenido paginado obtenido exitosamente');
+    return { success: true, data: data?.data ?? data, meta: data?.meta };
+  } catch (error) {
+    cmsLogger.error({ url, error }, 'CMS: Error obteniendo contenido paginado');
+    throw error;
+  }
+}
+
 export async function postContent<T = unknown>(
   url: string,
   body: unknown,

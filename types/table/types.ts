@@ -1,9 +1,9 @@
-export interface Column {
-  name: React.ReactNode;
-  selector?: (row: any) => any;
-  cell?: (row: any) => React.ReactNode;
-  sortable?: boolean;
-  width?: string;
+import type { TableColumn } from "react-data-table-component";
+
+export type Column<T = unknown> = TableColumn<T>;
+
+export interface SortableColumn {
+  sortField?: string;
 }
 
 export interface Filter {

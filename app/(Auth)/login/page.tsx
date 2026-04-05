@@ -8,10 +8,10 @@ export default function Login() {
   const { formState, handleSubmit, isPending } = useLoginForm();
 
   return (
-    <main className="bg-white min-h-screen flex flex-col items-center justify-center text-gray-800">
-      <div className="rounded-3xl border border-gray-200 shadow-2xl w-96">
+    <main className="bg-white min-h-screen flex flex-col items-center justify-center text-gray-800 px-4">
+      <div className="rounded-3xl border border-gray-200 shadow-2xl w-full max-w-sm sm:w-96">
         <div className="text-center my-4 mx-2">
-          <h1 className="text-4xl">Iniciar Sesión</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl">Iniciar Sesión</h1>
           <p className="text-sm text-gray-500">
             Formulario para ingresar al sistema
           </p>

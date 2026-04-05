@@ -1,4 +1,4 @@
-import { UploadIcon } from '../icons/upload';
+import { UploadIcon } from "../icons/upload";
 
 interface UploadDataTableProps {
   renderValue?: React.ReactNode;
@@ -12,11 +12,11 @@ export default function UploadDataTable({
   return (
     <>
       <button
-        className="bg-cyan-500 text-white font-semibold px-3 py-1.5 rounded-md hover:bg-cyan-600 items-center justify-center flex gap-0.5 cursor-pointer transition-colors"
+        className="bg-cyan-700 text-white font-semibold text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-md hover:bg-cyan-800 items-center justify-center flex gap-0.5 cursor-pointer transition-colors"
         onClick={() => setUploadModalOpen(true)}
       >
         <UploadIcon />
-        Subir Datos
+        <span className="hidden sm:inline">Subir Datos</span>
       </button>
 
       {/* Componente de subida de datos */}

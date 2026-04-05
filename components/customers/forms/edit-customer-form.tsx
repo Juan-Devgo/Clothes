@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Customer } from '@/types';
 
 import { useCreateCustomer, useUpdateCustomer } from '@/hooks/customers';
@@ -57,9 +58,24 @@ export default function EditCustomerForm({
   const isCreate = type === 'create';
   const formState = isCreate ? createFormState : updateFormState;
 
-  // Un campo está habilitado si enabledFields no está definido O si está en la lista
+  // En modo bulk (enabledFields definido), el usuario activa manualmente cada campo
+  const isBulkMode = enabledFields !== undefined;
+  const [toggledFields, setToggledFields] = useState<Set<string>>(new Set());
+
   const isFieldEnabled = (fieldName: string) =>
-    enabledFields === undefined || enabledFields.includes(fieldName);
+    !isBulkMode || toggledFields.has(fieldName);
+
+  const canToggle = (fieldName: string) =>
+    isBulkMode && enabledFields!.includes(fieldName);
+
+  const toggleField = (fieldName: string) => {
+    setToggledFields((prev) => {
+      const next = new Set(prev);
+      if (next.has(fieldName)) next.delete(fieldName);
+      else next.add(fieldName);
+      return next;
+    });
+  };
 
   // Colores dinámicos según el tipo
   const iconBg = isCreate ? 'bg-green-100' : 'bg-blue-100';
@@ -109,12 +125,16 @@ export default function EditCustomerForm({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Nombre */}
         <div className="flex flex-col">
-          <label
-            htmlFor="first_name"
-            className="text-sm font-medium text-gray-600 mb-1.5"
-          >
-            Nombre <span className="text-red-500">*</span>
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label htmlFor="first_name" className="text-sm font-medium text-gray-600">
+              Nombre <span className="text-red-500">*</span>
+            </label>
+            {canToggle('first_name') && (
+              <button type="button" onClick={() => toggleField('first_name')} disabled={isPending} className={`text-xs px-2 py-0.5 rounded-md border transition-colors cursor-pointer disabled:opacity-50 ${toggledFields.has('first_name') ? 'bg-gray-600 text-white border-gray-600' : 'bg-white text-gray-400 border-gray-300 hover:border-gray-400 hover:text-gray-500'}`}>
+                {toggledFields.has('first_name') ? 'Activo' : 'Editar'}
+              </button>
+            )}
+          </div>
           <input
             type="text"
             id="first_name"
@@ -130,12 +150,16 @@ export default function EditCustomerForm({
 
         {/* Apellido */}
         <div className="flex flex-col">
-          <label
-            htmlFor="last_name"
-            className="text-sm font-medium text-gray-600 mb-1.5"
-          >
-            Apellido <span className="text-red-500">*</span>
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label htmlFor="last_name" className="text-sm font-medium text-gray-600">
+              Apellido <span className="text-red-500">*</span>
+            </label>
+            {canToggle('last_name') && (
+              <button type="button" onClick={() => toggleField('last_name')} disabled={isPending} className={`text-xs px-2 py-0.5 rounded-md border transition-colors cursor-pointer disabled:opacity-50 ${toggledFields.has('last_name') ? 'bg-gray-600 text-white border-gray-600' : 'bg-white text-gray-400 border-gray-300 hover:border-gray-400 hover:text-gray-500'}`}>
+                {toggledFields.has('last_name') ? 'Activo' : 'Editar'}
+              </button>
+            )}
+          </div>
           <input
             type="text"
             id="last_name"
@@ -151,12 +175,16 @@ export default function EditCustomerForm({
 
         {/* Teléfono */}
         <div className="flex flex-col">
-          <label
-            htmlFor="phone"
-            className="text-sm font-medium text-gray-600 mb-1.5"
-          >
-            Teléfono <span className="text-red-500">*</span>
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label htmlFor="phone" className="text-sm font-medium text-gray-600">
+              Teléfono <span className="text-red-500">*</span>
+            </label>
+            {canToggle('phone') && (
+              <button type="button" onClick={() => toggleField('phone')} disabled={isPending} className={`text-xs px-2 py-0.5 rounded-md border transition-colors cursor-pointer disabled:opacity-50 ${toggledFields.has('phone') ? 'bg-gray-600 text-white border-gray-600' : 'bg-white text-gray-400 border-gray-300 hover:border-gray-400 hover:text-gray-500'}`}>
+                {toggledFields.has('phone') ? 'Activo' : 'Editar'}
+              </button>
+            )}
+          </div>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
               <PhoneIcon />
@@ -177,12 +205,16 @@ export default function EditCustomerForm({
 
         {/* Email */}
         <div className="flex flex-col">
-          <label
-            htmlFor="email"
-            className="text-sm font-medium text-gray-600 mb-1.5"
-          >
-            Email
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label htmlFor="email" className="text-sm font-medium text-gray-600">
+              Email
+            </label>
+            {canToggle('email') && (
+              <button type="button" onClick={() => toggleField('email')} disabled={isPending} className={`text-xs px-2 py-0.5 rounded-md border transition-colors cursor-pointer disabled:opacity-50 ${toggledFields.has('email') ? 'bg-gray-600 text-white border-gray-600' : 'bg-white text-gray-400 border-gray-300 hover:border-gray-400 hover:text-gray-500'}`}>
+                {toggledFields.has('email') ? 'Activo' : 'Editar'}
+              </button>
+            )}
+          </div>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
               <EmailIcon />
@@ -202,12 +234,16 @@ export default function EditCustomerForm({
 
         {/* Fecha de nacimiento */}
         <div className="flex flex-col">
-          <label
-            htmlFor="birthdate"
-            className="text-sm font-medium text-gray-600 mb-1.5"
-          >
-            Fecha de nacimiento
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label htmlFor="birthdate" className="text-sm font-medium text-gray-600">
+              Fecha de nacimiento
+            </label>
+            {canToggle('birthdate') && (
+              <button type="button" onClick={() => toggleField('birthdate')} disabled={isPending} className={`text-xs px-2 py-0.5 rounded-md border transition-colors cursor-pointer disabled:opacity-50 ${toggledFields.has('birthdate') ? 'bg-gray-600 text-white border-gray-600' : 'bg-white text-gray-400 border-gray-300 hover:border-gray-400 hover:text-gray-500'}`}>
+                {toggledFields.has('birthdate') ? 'Activo' : 'Editar'}
+              </button>
+            )}
+          </div>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
               <CakeIcon />
@@ -226,12 +262,16 @@ export default function EditCustomerForm({
 
         {/* Gustos/Preferencias */}
         <div className="flex flex-col md:col-span-2">
-          <label
-            htmlFor="tastes"
-            className="text-sm font-medium text-gray-600 mb-1.5"
-          >
-            Gustos/Preferencias
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label htmlFor="tastes" className="text-sm font-medium text-gray-600">
+              Gustos/Preferencias
+            </label>
+            {canToggle('tastes') && (
+              <button type="button" onClick={() => toggleField('tastes')} disabled={isPending} className={`text-xs px-2 py-0.5 rounded-md border transition-colors cursor-pointer disabled:opacity-50 ${toggledFields.has('tastes') ? 'bg-gray-600 text-white border-gray-600' : 'bg-white text-gray-400 border-gray-300 hover:border-gray-400 hover:text-gray-500'}`}>
+                {toggledFields.has('tastes') ? 'Activo' : 'Editar'}
+              </button>
+            )}
+          </div>
           <div className="relative">
             <span className="absolute left-4 top-3 text-gray-400">
               <HeartIcon />

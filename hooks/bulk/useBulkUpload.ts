@@ -160,13 +160,12 @@ export function useBulkUpload<TRow>(
         setValidatedData(validated);
         setValidCount(validated.length);
 
+        setStep('review');
         if (errors.length > 0) {
-          setStep('review');
           toast.success(
             `${validated.length} filas válidas. ${errors.length} filas con errores.`,
           );
         } else {
-          setStep('validated');
           toast.success(
             `Archivo validado exitosamente: ${validated.length} registros listos.`,
           );

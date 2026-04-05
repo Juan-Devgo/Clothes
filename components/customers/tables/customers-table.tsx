@@ -1,23 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import DeleteIcon from "@/components/icons/delete";
 import EditIcon from "@/components/icons/edit";
 import LinkIcon from "@/components/icons/link";
 import Table from "@/components/tables/table";
 import Modal from "@/components/ui/modal";
+import type { TableColumn } from "react-data-table-component";
 import { Customer } from "@/types";
 import { useCustomerTable } from "@/components/providers/customer-table-provider";
 import { useDeleteCustomer } from "@/hooks/customers";
-import AccountTables from "@/components/customers/account/account-tables";
 import { useGetAccount } from "@/hooks/accounts";
 import AccountSkeleton from "@/components/customers/account/account-skeleton";
 import AccountError from "@/components/customers/account/account-error";
-import DeleteRecordForm from "@/components/tables/delete-record-form";
-import EditCustomerForm from "@/components/customers/forms/edit-customer-form";
 import CreateRecordTable from "@/components/tables/create-record-table";
-import UploadDataModal from "@/components/tables/upload-data-modal";
-import DownloadDataModal from "@/components/tables/download-data-modal";
 import BulkDeleteModal from "@/components/tables/bulk-delete-modal";
 import {
   useBulkUploadCustomers,
@@ -25,9 +22,52 @@ import {
   useBulkDeleteCustomers,
   useBulkEditCustomers,
 } from "@/hooks/customers";
-import UploadDataTable from "@/components/tables/upload-data-table";
+import {
+  getCustomersPaginatedAction,
+  getCustomersAction,
+} from "@/actions/customers";
+import { useServerTable } from "@/hooks/tables/useServerTable";
 
-export default function CustomersTable({ data }: { data: Customer[] }) {
+// Lazy load heavy components only needed when modals open
+const AccountTables = dynamic(
+  () => import("@/components/customers/account/account-tables"),
+);
+const DeleteRecordForm = dynamic(
+  () => import("@/components/tables/delete-record-form"),
+);
+const EditCustomerForm = dynamic(
+  () => import("@/components/customers/forms/edit-customer-form"),
+);
+const UploadDataModal = dynamic(
+  () => import("@/components/tables/upload-data-modal"),
+);
+const DownloadDataModal = dynamic(
+  () => import("@/components/tables/download-data-modal"),
+);
+const UploadDataTable = dynamic(
+  () => import("@/components/tables/upload-data-table"),
+);
+
+const SEARCH_FIELD_MAP: Record<string, string | null> = {
+  first_name: "first_name",
+  last_name: "last_name",
+  phone: "phone",
+  email: "email",
+};
+
+interface CustomersTableProps {
+  initialData: Customer[];
+  initialTotal: number;
+  initialPage?: number;
+  initialPageSize?: number;
+}
+
+export default function CustomersTable({
+  initialData,
+  initialTotal,
+  initialPage = 1,
+  initialPageSize = 20,
+}: CustomersTableProps) {
   const {
     editModalOpen,
     createModalOpen,
@@ -52,8 +92,29 @@ export default function CustomersTable({ data }: { data: Customer[] }) {
     closeAllModals,
   } = useCustomerTable();
 
+  const {
+    data,
+    totalRows,
+    loading,
+    handlePageChange,
+    handlePerPageChange,
+    handleSort,
+    handleSearch: serverHandleSearch,
+    hasActiveSearch,
+    refetch,
+  } = useServerTable<Customer>({
+    fetchAction: getCustomersPaginatedAction,
+    initialData,
+    initialTotal,
+    initialPage,
+    initialPageSize,
+  });
+
   const [selectedCustomers, setSelectedCustomers] = useState<Customer[]>([]);
   const [clearSelection, setClearSelection] = useState(false);
+  const [modifiedCustomerId, setModifiedCustomerId] = useState<
+    string | string[] | null
+  >(null);
 
   const { account, isLoading: isLoadingAccount } = useGetAccount(
     accountModalOpen ? selectedAccountId : null,
@@ -65,45 +126,118 @@ export default function CustomersTable({ data }: { data: Customer[] }) {
     closeAllModals();
     setSelectedCustomers([]);
     setClearSelection((prev) => !prev);
+    refetch();
   }
 
-  const bulkDeleteCustomers = useBulkDeleteCustomers({ onSuccess: handleBulkSuccess });
-  const bulkEditCustomers = useBulkEditCustomers({
-    documentIds: selectedCustomers.map((c) => c.documentId!).filter(Boolean),
+  function handleBulkEditSuccess() {
+    const ids = selectedCustomers.map((c) => c.documentId!).filter(Boolean);
+    handleBulkSuccess();
+    if (ids.length > 0) {
+      setModifiedCustomerId(null);
+      setTimeout(() => {
+        setModifiedCustomerId(ids);
+        setTimeout(() => setModifiedCustomerId(null), 2500);
+      }, 0);
+    }
+  }
+
+  const bulkDeleteCustomers = useBulkDeleteCustomers({
     onSuccess: handleBulkSuccess,
   });
+  const bulkEditCustomers = useBulkEditCustomers({
+    documentIds: selectedCustomers.map((c) => c.documentId!).filter(Boolean),
+    onSuccess: handleBulkEditSuccess,
+  });
+
+  function handleEditSuccess() {
+    const id = selectedCustomer?.documentId;
+    closeAllModals();
+    refetch();
+    if (id) {
+      setModifiedCustomerId(null);
+      setTimeout(() => {
+        setModifiedCustomerId(id);
+        setTimeout(() => setModifiedCustomerId(null), 2500);
+      }, 0);
+    }
+  }
+
+  function handleCreateSuccess() {
+    closeAllModals();
+    refetch();
+  }
+
+  function handleDeleteSuccess() {
+    closeAllModals();
+    refetch();
+  }
 
   function handleCloseUploadModal() {
     closeAllModals();
     bulkUploadCustomers.reset();
+    refetch();
   }
 
   function handleSelectedRowsChange(selectedRows: Customer[]) {
     setSelectedCustomers(selectedRows);
   }
 
-  const columns = [
+  function handleSearch(query: string, activeColumns: string[]) {
+    const strapiFields = activeColumns
+      .map((col) => SEARCH_FIELD_MAP[col])
+      .filter((f): f is string => f !== null);
+    serverHandleSearch(query, strapiFields);
+  }
+
+  const columns: TableColumn<Customer>[] = [
     {
       name: "Nombre",
-      selector: (row: Customer) => row.first_name,
+      minWidth: "128px",
+      selector: (row) => row.first_name,
+      cell: (row) => (
+        <span className="truncate max-w-36" title={row.first_name}>
+          {row.first_name}
+        </span>
+      ),
       sortable: true,
+      sortField: "first_name",
     },
     {
       name: "Apellido",
-      selector: (row: Customer) => row.last_name,
+      minWidth: "128px",
+      selector: (row) => row.last_name,
+      cell: (row) => (
+        <span className="truncate max-w-36" title={row.last_name}>
+          {row.last_name}
+        </span>
+      ),
       sortable: true,
+      sortField: "last_name",
     },
     {
       name: "Teléfono",
-      selector: (row: Customer) => row.phone,
+      minWidth: "140px",
+      selector: (row) => row.phone,
+      cell: (row) => (
+        <span className="truncate max-w-36" title={row.phone}>
+          {row.phone}
+        </span>
+      ),
     },
     {
       name: "Email",
-      selector: (row: Customer) => row.email || "-",
+      minWidth: "240px",
+      selector: (row) => row.email || "-",
+      cell: (row) => (
+        <span className="truncate max-w-64" title={row.email || "-"}>
+          {row.email || "-"}
+        </span>
+      ),
     },
     {
       name: "Cumpleaños",
-      selector: (row: Customer) => {
+      minWidth: "160px",
+      selector: (row) => {
         if (!row.birthdate) return "No proporcionado";
         const date = new Date(row.birthdate + "T00:00:00");
         return date.toLocaleDateString("es-ES", {
@@ -112,52 +246,55 @@ export default function CustomersTable({ data }: { data: Customer[] }) {
         });
       },
       sortable: true,
+      sortField: "birthdate",
     },
     {
-      name: <span className="block w-full text-center">Cuenta</span>,
-      width: "150px",
-      cell: (row: Customer & { account?: { documentId: string } }) => {
-        if (!row.account || !row.account.documentId) {
-          return <div className="w-full text-center">No asignada</div>;
+      name: "Cuenta",
+      minWidth: "140px",
+      grow: 0,
+      center: true,
+      cell: (row) => {
+        const account = typeof row.account === "object" ? row.account : null;
+        if (!account?.documentId) {
+          return "No asignada";
         }
         return (
-          <div className="w-full flex justify-center">
-            <button
-              className="px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-700 cursor-pointer transition-colors"
-              onClick={() => openAccountModal(row, row.account!.documentId)}
-            >
-              <LinkIcon />
-            </button>
-          </div>
+          <button
+            aria-label="Ver cuenta vinculada"
+            className="px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-700 cursor-pointer transition-colors max-w-36"
+            onClick={() => openAccountModal(row, account.documentId!)}
+          >
+            <LinkIcon aria-hidden="true" />
+          </button>
         );
       },
     },
     {
-      name: <span className="block w-full text-center">Editar</span>,
-      width: "150px",
-      cell: (row: Customer) => (
-        <div className="w-full flex justify-center">
-          <button
-            className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-700 cursor-pointer transition-colors"
-            onClick={() => openEditModal(row)}
-          >
-            <EditIcon />
-          </button>
-        </div>
+      name: "Editar",
+      button: true,
+      minWidth: "140px",
+      cell: (row) => (
+        <button
+          aria-label={`Editar cliente ${row.first_name} ${row.last_name}`}
+          className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-700 cursor-pointer transition-colors max-w-36"
+          onClick={() => openEditModal(row)}
+        >
+          <EditIcon aria-hidden="true" />
+        </button>
       ),
     },
     {
-      name: <span className="block w-full text-center">Eliminar</span>,
-      width: "150px",
-      cell: (row: Customer) => (
-        <div className="w-full flex justify-center">
-          <button
-            className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-700 cursor-pointer transition-colors"
-            onClick={() => openDeleteModal(row)}
-          >
-            <DeleteIcon />
-          </button>
-        </div>
+      name: "Eliminar",
+      button: true,
+      minWidth: "140px",
+      cell: (row) => (
+        <button
+          aria-label={`Eliminar cliente ${row.first_name} ${row.last_name}`}
+          className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-700 cursor-pointer transition-colors max-w-36"
+          onClick={() => openDeleteModal(row)}
+        >
+          <DeleteIcon aria-hidden="true" />
+        </button>
       ),
     },
   ];
@@ -183,7 +320,7 @@ export default function CustomersTable({ data }: { data: Customer[] }) {
     publishedAt: "",
   };
 
-  if (data.length === 0) {
+  if (totalRows === 0 && !loading && !hasActiveSearch) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-gray-500 gap-4">
         <p>No hay clientes registrados.</p>
@@ -197,7 +334,7 @@ export default function CustomersTable({ data }: { data: Customer[] }) {
               <EditCustomerForm
                 type="create"
                 customer={defaultCustomer}
-                onSuccess={closeAllModals}
+                onSuccess={handleCreateSuccess}
                 onCancel={closeAllModals}
               />
             </Modal>
@@ -226,14 +363,13 @@ export default function CustomersTable({ data }: { data: Customer[] }) {
   }
 
   return (
-    <>
+    <div className="flex flex-col flex-1 min-h-0">
       <Table
-        title="Registros de Clientes"
         columns={columns}
         filterableColumns={filterableColumns}
         data={data}
         selectableRows={true}
-        pagination={{ active: true, perPage: 10 }}
+        pagination={{ active: true, perPage: initialPageSize }}
         onSelectedRowsChange={handleSelectedRowsChange}
         createRecordComponentTitle="Nuevo Cliente"
         createRecordComponent={
@@ -245,7 +381,7 @@ export default function CustomersTable({ data }: { data: Customer[] }) {
             <EditCustomerForm
               type="create"
               customer={defaultCustomer}
-              onSuccess={closeAllModals}
+              onSuccess={handleCreateSuccess}
               onCancel={closeAllModals}
             />
           </Modal>
@@ -273,12 +409,14 @@ export default function CustomersTable({ data }: { data: Customer[] }) {
             title="Descarga Excel de Clientes"
           >
             <DownloadDataModal
-              recordCount={data.length}
+              recordCount={totalRows}
               entityName="Clientes"
               isPending={bulkDownloadCustomers.isPending}
-              onConfirm={() =>
-                bulkDownloadCustomers.handleDownload(data).then(closeAllModals)
-              }
+              onConfirm={async () => {
+                const allCustomers = (await getCustomersAction()) as Customer[];
+                await bulkDownloadCustomers.handleDownload(allCustomers);
+                closeAllModals();
+              }}
               onClose={closeAllModals}
             />
           </Modal>
@@ -345,7 +483,16 @@ export default function CustomersTable({ data }: { data: Customer[] }) {
         }
         setBulkDownloadModalOpen={openBulkDownloadModal}
         clearSelectedRows={clearSelection}
-        pendingText="Cargando Clientes..."
+        keyField="documentId"
+        modifiedRowId={modifiedCustomerId}
+        serverSide={{
+          totalRows,
+          loading,
+          onPageChange: handlePageChange,
+          onPerPageChange: handlePerPageChange,
+          onSort: handleSort,
+        }}
+        onServerSearch={handleSearch}
       />
 
       {/* Modal para ver cuenta */}
@@ -378,7 +525,7 @@ export default function CustomersTable({ data }: { data: Customer[] }) {
           <EditCustomerForm
             type="edit"
             customer={selectedCustomer}
-            onSuccess={closeAllModals}
+            onSuccess={handleEditSuccess}
             onCancel={closeAllModals}
           />
         )}
@@ -395,11 +542,11 @@ export default function CustomersTable({ data }: { data: Customer[] }) {
             documentId={selectedCustomer.documentId}
             name={`${selectedCustomer?.first_name || ""} ${selectedCustomer?.last_name || ""}`}
             useDeleteHook={useDeleteCustomer}
-            onSuccess={closeAllModals}
+            onSuccess={handleDeleteSuccess}
             onCancel={closeAllModals}
           />
         )}
       </Modal>
-    </>
+    </div>
   );
 }

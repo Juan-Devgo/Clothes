@@ -37,13 +37,13 @@ export function getProductStateColor(stateName?: string): string {
 
 // ─── Categorías de Producto ──────────────────────────────────────────
 // Paletas distintas a los estados (rojo/amarillo/verde):
-//   BAGS → rose | BELTS → teal | CLOTHES → indigo | JEWELRY → amber
+//   BAGS → lime | BELTS → teal | CLOTHES → indigo | JEWELRY → amber
 //   OMNILIFE → violet | PERFUME → fuchsia | SHOES → orange | WATCHES → sky
 
 export function getProductCategoryColor(categoryName?: string): string {
   switch (categoryName?.toUpperCase()) {
     case 'BAGS':
-      return 'bg-rose-100 text-rose-700';
+      return 'bg-lime-100 text-lime-700';
     case 'BELTS':
       return 'bg-teal-100 text-teal-700';
     case 'CLOTHES':
@@ -65,21 +65,21 @@ export function getProductCategoryColor(categoryName?: string): string {
 
 // ─── Subcategorías de Producto ───────────────────────────────────────
 // Cada subcategoría hereda la familia de color de su categoría padre,
-// variando la intensidad del fondo (50→300) para distinguirlas entre sí.
+// variando la intensidad del fondo (100→300) para distinguirlas entre sí.
 
 export function getProductSubcategoryColor(subcategoryName?: string): string {
   switch (subcategoryName?.toUpperCase()) {
     // CLOTHES → familia indigo
     case 'BLOUSE':
-      return 'bg-indigo-50 text-indigo-600';
+      return 'bg-indigo-200 text-indigo-700';
     case 'COVERALL':
-      return 'bg-indigo-100 text-indigo-700';
+      return 'bg-indigo-300 text-indigo-800';
     case 'DRESS':
       return 'bg-indigo-200 text-indigo-700';
     case 'JACKET':
-      return 'bg-indigo-300 text-indigo-800';
+      return 'bg-indigo-200 text-indigo-800';
     case 'KIDS_CLOTHES':
-      return 'bg-indigo-50 text-indigo-700';
+      return 'bg-indigo-100 text-indigo-700';
     case 'LEGGINGS':
       return 'bg-indigo-100 text-indigo-600';
     case 'MAN_SHIRT':
@@ -92,7 +92,7 @@ export function getProductSubcategoryColor(subcategoryName?: string): string {
       return 'bg-indigo-200 text-indigo-600';
     // SHOES → familia orange
     case 'BARGAIN_SHOES':
-      return 'bg-orange-50 text-orange-600';
+      return 'bg-orange-100 text-orange-800';
     case 'BOOTS':
       return 'bg-orange-100 text-orange-700';
     case 'LADY_SHOES':
@@ -101,16 +101,16 @@ export function getProductSubcategoryColor(subcategoryName?: string): string {
       return 'bg-orange-300 text-orange-900';
     // JEWELRY → familia amber
     case 'GOLFI_GOLD':
-      return 'bg-amber-50 text-amber-600';
+      return 'bg-amber-200 text-amber-600';
     case 'LAMINATED_GOLD':
-      return 'bg-amber-100 text-amber-700';
+      return 'bg-amber-300 text-amber-700';
     case 'RHODIUM':
       return 'bg-amber-200 text-amber-800';
     case 'SILVER':
-      return 'bg-amber-300 text-amber-900';
+      return 'bg-amber-100 text-amber-900';
     case 'STEEL':
       return 'bg-amber-100 text-amber-600';
     default:
-      return 'bg-gray-100 text-gray-400';
+      return 'bg-gray-200 text-gray-400';
   }
 }

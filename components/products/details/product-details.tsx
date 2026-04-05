@@ -2,6 +2,7 @@
 
 import { Product } from '@/types';
 import { useState } from 'react';
+import Image from 'next/image';
 import ImageIcon from '@/components/icons/image';
 import { cmsApi } from '@/lib/paths';
 import {
@@ -16,23 +17,21 @@ interface ProductDetailsProps {
 }
 
 export default function ProductDetails({ product }: ProductDetailsProps) {
+  const [imageError, setImageError] = useState(false);
+
   if (!product) {
     return (
       <p className="text-center text-gray-500">
         No se pudo cargar el producto.
       </p>
     );
-  } else {
-    console.log('Imagen del producto:', product.photo);
   }
-
-  const [imageError, setImageError] = useState(false);
 
   return (
     <div className="w-full">
       {/* Header: Nombre y badges */}
-      <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between mb-6 pb-4 border-b border-gray-200 gap-3">
+        <div className="flex items-center gap-3 sm:gap-4">
           <div className="w-12 h-12 rounded-full bg-[#fdecf2] flex items-center justify-center">
             <span className="text-[#f37ca8]">
               {getCategoryIcon(product.category?.name)}
@@ -71,12 +70,14 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
       </div>
 
       {/* Foto del producto */}
-      <div className="mb-6 w-full h-80 rounded-lg border border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center">
+      <div className="relative mb-6 w-full h-48 sm:h-64 md:h-80 rounded-lg border border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center">
         {product.photo?.url && !imageError ? (
-          <img
+          <Image
             src={`${cmsApi.BASE_URL}${product.photo.url}`}
             alt={product.photo.alternativeText || product.name}
-            className="w-full h-full object-contain"
+            fill
+            unoptimized
+            className="object-contain"
             onError={() => setImageError(true)}
           />
         ) : (

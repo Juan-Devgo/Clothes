@@ -20,7 +20,7 @@
  * - Fila 3+, columnas C en adelante: Datos de cada registro
  */
 
-import ExcelJS from 'exceljs';
+import type ExcelJS from 'exceljs';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -104,7 +104,8 @@ export async function parseExcelFile(
     dataStartCol = 3,
   } = config;
 
-  const workbook = new ExcelJS.Workbook();
+  const { default: ExcelLib } = await import('exceljs');
+  const workbook = new ExcelLib.Workbook();
   const buffer = await file.arrayBuffer();
   await workbook.xlsx.load(buffer);
 
@@ -143,24 +144,27 @@ export async function parseExcelFile(
 
     for (const [colIdx, key] of headerMap) {
       const cell = row.getCell(colIdx);
-      let value = getCellValue(cell);
+      const rawValue = getCellValue(cell);
 
-      // Aplicar transformador si existe
-      if (fieldTransformers[key]) {
-        value = fieldTransformers[key](value);
-      }
-
-      if (value !== undefined && value !== null && value !== '') {
+      // Verificar si hay dato antes de aplicar transformadores
+      if (rawValue !== undefined && rawValue !== null && rawValue !== '') {
         hasData = true;
       }
+
+      // Aplicar transformador si existe
+      const value = fieldTransformers[key]
+        ? fieldTransformers[key](rawValue)
+        : rawValue;
 
       obj[key] = value;
     }
 
-    // Solo agregar filas que tengan al menos un dato
-    if (hasData) {
-      rows.push(obj);
+    // Parar al encontrar la primera fila completamente vacía
+    if (!hasData) {
+      break;
     }
+
+    rows.push(obj);
   }
 
   return rows;
@@ -218,15 +222,16 @@ export async function parseCsvFile(
     let hasData = false;
 
     for (const [colIdx, key] of headerMap) {
-      let value: unknown = values[colIdx] || undefined;
+      const rawValue: unknown = values[colIdx] || undefined;
 
-      if (fieldTransformers[key]) {
-        value = fieldTransformers[key](value);
-      }
-
-      if (value !== undefined && value !== null && value !== '') {
+      // Verificar si hay dato antes de aplicar transformadores
+      if (rawValue !== undefined && rawValue !== null && rawValue !== '') {
         hasData = true;
       }
+
+      const value = fieldTransformers[key]
+        ? fieldTransformers[key](rawValue)
+        : rawValue;
 
       obj[key] = value;
     }
@@ -285,7 +290,8 @@ export async function fillExcelTemplate(
   }
 
   const buffer = await response.arrayBuffer();
-  const workbook = new ExcelJS.Workbook();
+  const { default: ExcelLib } = await import('exceljs');
+  const workbook = new ExcelLib.Workbook();
   await workbook.xlsx.load(buffer);
 
   const worksheet = workbook.worksheets[0];
