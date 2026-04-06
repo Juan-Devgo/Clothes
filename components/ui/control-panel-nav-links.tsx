@@ -33,6 +33,9 @@ export default function NavLinks() {
   const pathname = usePathname();
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth : 1280,
+  );
 
   useEffect(() => {
     function onOutsideClick(e: MouseEvent) {
@@ -47,10 +50,32 @@ export default function NavLinks() {
     return () => document.removeEventListener("mousedown", onOutsideClick);
   }, []);
 
+  useEffect(() => {
+    function onResize() {
+      setWindowWidth(window.innerWidth);
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const itemClass = (href: string) =>
     `transition-colors duration-200 px-2 py-1 rounded-full whitespace-nowrap block text-base font-bold ${
       pathname === href ? "bg-[#fc86b3]" : "hover:bg-[#f7d0df]"
     }`;
+
+  // Un link está en el dropdown sólo si está oculto en la barra al breakpoint actual.
+  // < 1024px (lg): índices 3+ están en el dropdown
+  // 1024-1279px (lg→xl): índices 5+ están en el dropdown
+  // ≥ 1280px (xl): el botón "Más" no se muestra
+  const isInDropdown = (index: number) => {
+    if (windowWidth < 1024) return index >= 3;
+    if (windowWidth < 1280) return index >= 5;
+    return false;
+  };
+
+  const isDropdownActive = links.some(
+    (link, index) => isInDropdown(index) && pathname === link.href,
+  );
 
   return (
     <div className="flex items-center justify-center gap-1 flex-1 min-w-0">
@@ -73,7 +98,7 @@ export default function NavLinks() {
           onClick={() => setDropdownOpen(!dropdownOpen)}
           aria-expanded={dropdownOpen}
           className={`px-2 py-1 rounded-full text-base font-bold transition-colors whitespace-nowrap cursor-pointer ${
-            dropdownOpen ? "bg-[#fc86b3]" : "hover:bg-[#f7d0df]"
+            dropdownOpen || isDropdownActive ? "bg-[#fc86b3]" : "hover:bg-[#f7d0df]"
           }`}
         >
           Más

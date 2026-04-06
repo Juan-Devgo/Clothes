@@ -127,12 +127,12 @@ export default function FiltersTable<T>({
   }
 
   return (
-    <div className="flex flex-row items-center gap-2">
+    <div className="flex flex-row items-center gap-2 w-full">
       <input
         type="text"
         placeholder="Buscar"
         onChange={handleInputChange}
-        className="px-4 py-2.5 w-32 sm:w-48 md:w-64 lg:w-96 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-transparent transition-all"
+        className="flex-1 min-w-32 max-w-96 px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-transparent transition-all"
       />
 
       <div className="relative">

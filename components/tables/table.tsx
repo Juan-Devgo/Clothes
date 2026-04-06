@@ -1,7 +1,7 @@
 "use client";
 
 import { Column, Filter, SortableColumn } from "@/types";
-import { useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore, useMemo } from "react";
 import DataTable from "react-data-table-component";
 import { StyleSheetManager } from "styled-components";
 import isPropValid from "@emotion/is-prop-valid";
@@ -46,6 +46,8 @@ interface TableProps<T> {
   keyField?: string;
   /** ID o IDs de las filas recién modificadas; se resaltan con animación */
   modifiedRowId?: string | number | (string | number)[] | null;
+  /** Filas que se inyectan al inicio de la tabla aunque no estén en la página actual */
+  pinnedRows?: T[];
   /** Acciones habilitadas para la selección masiva */
   allowedBulkActions?: BulkAction[];
   bulkEditComponent?: React.ReactNode;
@@ -77,6 +79,7 @@ export default function Table<T>({
   clearSelectedRows = false,
   keyField = "id",
   modifiedRowId = null,
+  pinnedRows = [],
   allowedBulkActions = [],
   bulkEditComponent,
   setBulkEditModalOpen,
@@ -92,7 +95,6 @@ export default function Table<T>({
   const [selectedCount, setSelectedCount] = useState(0);
   const [prevClearSelectedRows, setPrevClearSelectedRows] =
     useState(clearSelectedRows);
-
   if (prevClearSelectedRows !== clearSelectedRows) {
     setPrevClearSelectedRows(clearSelectedRows);
     setSelectedCount(0);
@@ -103,6 +105,50 @@ export default function Table<T>({
     () => true,
     () => false,
   );
+
+  const isServerSide = !!serverSide;
+  const tableData = isServerSide ? data : records;
+
+  const pinnedIds = useMemo(
+    () =>
+      modifiedRowId == null
+        ? null
+        : Array.isArray(modifiedRowId)
+          ? modifiedRowId
+          : [modifiedRowId],
+    [modifiedRowId],
+  );
+
+  const displayData = useMemo(() => {
+    if (!pinnedIds || pinnedIds.length === 0) return tableData;
+
+    // Filas inyectadas que no están en la página actual
+    const extraPinned = pinnedRows.filter(
+      (row) =>
+        !tableData.some(
+          (td) =>
+            (td as Record<string, unknown>)[keyField] ===
+            (row as Record<string, unknown>)[keyField],
+        ),
+    );
+
+    // Filas de la página actual que coinciden con pinnedIds
+    const pinnedFromPage = tableData.filter((row) =>
+      pinnedIds.includes(
+        (row as Record<string, unknown>)[keyField] as string | number,
+      ),
+    );
+
+    // Resto de filas de la página actual (no pinneadas)
+    const rest = tableData.filter(
+      (row) =>
+        !pinnedIds.includes(
+          (row as Record<string, unknown>)[keyField] as string | number,
+        ),
+    );
+
+    return [...extraPinned, ...pinnedFromPage, ...rest];
+  }, [tableData, pinnedIds, pinnedRows, keyField]);
 
   const paginationComponentOptions = {
     rowsPerPageText: "Filas por página",
@@ -116,21 +162,21 @@ export default function Table<T>({
   }
 
   const hasSelection = selectedCount > 0;
-  const isServerSide = !!serverSide;
-  const tableData = isServerSide ? data : records;
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex flex-wrap items-center justify-between mb-2 gap-2">
-        <FiltersTable
-          allFilters={filterableColumns ?? []}
-          data={data}
-          records={records}
-          setRecords={setRecords}
-          onServerSearch={isServerSide ? onServerSearch : undefined}
-        />
+      <div className="flex flex-wrap items-center mb-2 gap-2">
+        <div className="flex-1 min-w-48">
+          <FiltersTable
+            allFilters={filterableColumns ?? []}
+            data={data}
+            records={records}
+            setRecords={setRecords}
+            onServerSearch={isServerSide ? onServerSearch : undefined}
+          />
+        </div>
 
-        <div className="flex items-center justify-center mb-2 gap-1 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {hasSelection ? (
             /* ── Bulk action buttons ─────────────────────── */
             <>
@@ -183,89 +229,91 @@ export default function Table<T>({
 
       <div className="flex-1 min-h-0 flex flex-col rounded-md border border-gray-200 overflow-hidden">
         <StyleSheetManager shouldForwardProp={isPropValid}>
-        <DataTable
-          fixedHeader
-          fixedHeaderScrollHeight="100%"
-          striped
-          keyField={keyField}
-          columns={columns}
-          data={tableData}
-          pagination={isServerSide ? true : pagination?.active}
-          paginationPerPage={pagination?.perPage}
-          paginationServer={isServerSide}
-          paginationTotalRows={serverSide?.totalRows}
-          onChangePage={serverSide?.onPageChange}
-          onChangeRowsPerPage={serverSide?.onPerPageChange}
-          sortServer={isServerSide}
-          onSort={serverSide?.onSort}
-          selectableRows={selectableRows}
-          clearSelectedRows={clearSelectedRows}
-          onSelectedRowsChange={(state) => {
-            setSelectedCount(state.selectedRows.length);
-            onSelectedRowsChange?.(state.selectedRows);
-          }}
-          conditionalRowStyles={
-            modifiedRowId != null
-              ? [
-                  {
-                    when: (row) => {
-                      const rowKey = (row as Record<string, unknown>)[keyField];
-                      return Array.isArray(modifiedRowId)
-                        ? (modifiedRowId as (string | number)[]).includes(
-                            rowKey as string | number,
-                          )
-                        : rowKey === modifiedRowId;
+          <DataTable
+            fixedHeader
+            fixedHeaderScrollHeight="100%"
+            striped
+            keyField={keyField}
+            columns={columns}
+            data={displayData}
+            pagination={isServerSide ? true : pagination?.active}
+            paginationPerPage={pagination?.perPage}
+            paginationServer={isServerSide}
+            paginationTotalRows={serverSide?.totalRows}
+            onChangePage={serverSide?.onPageChange}
+            onChangeRowsPerPage={serverSide?.onPerPageChange}
+            sortServer={isServerSide}
+            onSort={serverSide?.onSort}
+            selectableRows={selectableRows}
+            clearSelectedRows={clearSelectedRows}
+            onSelectedRowsChange={(state) => {
+              setSelectedCount(state.selectedRows.length);
+              onSelectedRowsChange?.(state.selectedRows);
+            }}
+            conditionalRowStyles={
+              modifiedRowId != null
+                ? [
+                    {
+                      when: (row) => {
+                        const rowKey = (row as Record<string, unknown>)[
+                          keyField
+                        ];
+                        return Array.isArray(modifiedRowId)
+                          ? (modifiedRowId as (string | number)[]).includes(
+                              rowKey as string | number,
+                            )
+                          : rowKey === modifiedRowId;
+                      },
+                      classNames: ["row-highlight-animation"],
                     },
-                    classNames: ["row-highlight-animation"],
-                  },
-                ]
-              : []
-          }
-          customStyles={{
-            table: {
-              style: {
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
+                  ]
+                : []
+            }
+            customStyles={{
+              table: {
+                style: {
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                },
               },
-            },
-            tableWrapper: {
-              style: {
-                flex: "1",
-                overflow: "hidden",
+              tableWrapper: {
+                style: {
+                  flex: "1",
+                  overflow: "hidden",
+                },
               },
-            },
-            head: {
-              style: {
-                fontSize: "16px",
-                fontWeight: 600,
+              head: {
+                style: {
+                  fontSize: "16px",
+                  fontWeight: 600,
+                },
               },
-            },
-            headCells: {
-              style: {
-                paddingLeft: "16px",
-                paddingRight: "16px",
+              headCells: {
+                style: {
+                  paddingLeft: "16px",
+                  paddingRight: "16px",
+                },
               },
-            },
-            rows: {
-              style: {
-                minHeight: "52px",
-                maxHeight: "52px",
+              rows: {
+                style: {
+                  minHeight: "52px",
+                  maxHeight: "52px",
+                },
+                stripedStyle: {
+                  backgroundColor: "#f3f4f6",
+                },
               },
-              stripedStyle: {
-                backgroundColor: "#f3f4f6",
-              },
-            },
-          }}
-          paginationComponentOptions={paginationComponentOptions}
-          noDataComponent={
-            <div className="py-8 text-center text-gray-500">
-              {noSearchResultsMessage}
-            </div>
-          }
-          progressPending={isServerSide ? serverSide.loading : !data}
-          progressComponent={<Fallback variant="skeleton" />}
-        />
+            }}
+            paginationComponentOptions={paginationComponentOptions}
+            noDataComponent={
+              <div className="py-8 text-center text-gray-500">
+                {noSearchResultsMessage}
+              </div>
+            }
+            progressPending={isServerSide ? serverSide.loading : !data}
+            progressComponent={<Fallback variant="skeleton" />}
+          />
         </StyleSheetManager>
       </div>
     </div>

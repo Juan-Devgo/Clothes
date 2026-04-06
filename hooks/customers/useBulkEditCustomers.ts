@@ -1,7 +1,6 @@
 'use client';
 
 import { useTransition } from 'react';
-import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { updateCustomersBulkAction } from '@/actions/customers';
 
@@ -11,7 +10,6 @@ interface UseBulkEditCustomersConfig {
 }
 
 export function useBulkEditCustomers(config: UseBulkEditCustomersConfig) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   async function handleSubmit(formData: FormData) {
@@ -41,7 +39,6 @@ export function useBulkEditCustomers(config: UseBulkEditCustomersConfig) {
           if (result.success) {
             toast.success(result.message || `${result.created ?? 0} clientes actualizados.`);
             config.onSuccess?.();
-            router.refresh();
           } else {
             toast.error(result.message || 'Error al actualizar los registros.');
           }

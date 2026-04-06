@@ -25,27 +25,36 @@ import {
 import {
   getCustomersPaginatedAction,
   getCustomersAction,
+  getCustomersByIdsAction,
 } from "@/actions/customers";
 import { useServerTable } from "@/hooks/tables/useServerTable";
 
-// Lazy load heavy components only needed when modals open
+// Lazy load heavy components only needed when modals open.
+// { loading: () => null } creates a local Suspense boundary so the lazy load
+// doesn't bubble up to route-level loading.tsx (which would unmount the page).
 const AccountTables = dynamic(
   () => import("@/components/customers/account/account-tables"),
+  { loading: () => null },
 );
 const DeleteRecordForm = dynamic(
   () => import("@/components/tables/delete-record-form"),
+  { loading: () => null },
 );
 const EditCustomerForm = dynamic(
   () => import("@/components/customers/forms/edit-customer-form"),
+  { loading: () => null },
 );
 const UploadDataModal = dynamic(
   () => import("@/components/tables/upload-data-modal"),
+  { loading: () => null },
 );
 const DownloadDataModal = dynamic(
   () => import("@/components/tables/download-data-modal"),
+  { loading: () => null },
 );
 const UploadDataTable = dynamic(
   () => import("@/components/tables/upload-data-table"),
+  { loading: () => null },
 );
 
 const SEARCH_FIELD_MAP: Record<string, string | null> = {
@@ -115,6 +124,7 @@ export default function CustomersTable({
   const [modifiedCustomerId, setModifiedCustomerId] = useState<
     string | string[] | null
   >(null);
+  const [pinnedRows, setPinnedRows] = useState<Customer[]>([]);
 
   const { account, isLoading: isLoadingAccount } = useGetAccount(
     accountModalOpen ? selectedAccountId : null,
@@ -129,14 +139,19 @@ export default function CustomersTable({
     refetch();
   }
 
-  function handleBulkEditSuccess() {
+  async function handleBulkEditSuccess() {
     const ids = selectedCustomers.map((c) => c.documentId!).filter(Boolean);
     handleBulkSuccess();
     if (ids.length > 0) {
+      const freshRows = await getCustomersByIdsAction(ids);
+      setPinnedRows(freshRows);
       setModifiedCustomerId(null);
       setTimeout(() => {
         setModifiedCustomerId(ids);
-        setTimeout(() => setModifiedCustomerId(null), 2500);
+        setTimeout(() => {
+          setModifiedCustomerId(null);
+          setPinnedRows([]);
+        }, 2500);
       }, 0);
     }
   }
@@ -149,15 +164,20 @@ export default function CustomersTable({
     onSuccess: handleBulkEditSuccess,
   });
 
-  function handleEditSuccess() {
+  async function handleEditSuccess() {
     const id = selectedCustomer?.documentId;
     closeAllModals();
     refetch();
     if (id) {
+      const freshRows = await getCustomersByIdsAction([id]);
+      setPinnedRows(freshRows);
       setModifiedCustomerId(null);
       setTimeout(() => {
         setModifiedCustomerId(id);
-        setTimeout(() => setModifiedCustomerId(null), 2500);
+        setTimeout(() => {
+          setModifiedCustomerId(null);
+          setPinnedRows([]);
+        }, 2500);
       }, 0);
     }
   }
@@ -173,9 +193,12 @@ export default function CustomersTable({
   }
 
   function handleCloseUploadModal() {
+    const wasUploaded = bulkUploadCustomers.step === "done";
     closeAllModals();
     bulkUploadCustomers.reset();
-    refetch();
+    if (wasUploaded) {
+      refetch();
+    }
   }
 
   function handleSelectedRowsChange(selectedRows: Customer[]) {
@@ -485,6 +508,7 @@ export default function CustomersTable({
         clearSelectedRows={clearSelection}
         keyField="documentId"
         modifiedRowId={modifiedCustomerId}
+        pinnedRows={pinnedRows}
         serverSide={{
           totalRows,
           loading,

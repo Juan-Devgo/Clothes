@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidateTag, cacheLife, cacheTag } from "next/cache";
 import { cmsApi } from "@/lib/paths";
 import { cmsLogger } from "@/lib/logger";
 import { Product, ProductCategory, ProductSubcategory } from "@/types";
@@ -77,18 +76,15 @@ export interface PaginatedProductsResult {
   pageCount: number;
 }
 
-async function cachedFetchProducts(
+async function fetchProductsFromCMS(
   token: string,
   queryString: string,
   page: number,
   pageSize: number,
 ): Promise<PaginatedProductsResult> {
-  "use cache";
-  cacheLife({ stale: 0, revalidate: 30, expire: 60 });
-  cacheTag("products");
-
   const response = await fetch(`${cmsApi.PRODUCTS}?${queryString}`, {
     method: "GET",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
@@ -156,7 +152,35 @@ export async function getProductsPaginatedAction(
   }
 
   const queryString = qs.stringify(queryObj, { encodeValuesOnly: true });
-  return cachedFetchProducts(token, queryString, page, pageSize);
+  return fetchProductsFromCMS(token, queryString, page, pageSize);
+}
+
+/**
+ * Obtener productos por sus documentIds (para pinning tras edición masiva)
+ */
+export async function getProductsByIdsAction(
+  documentIds: string[],
+): Promise<Product[]> {
+  if (documentIds.length === 0) return [];
+
+  const query = qs.stringify(
+    {
+      fields: ["name", "price", "currency", "stock", "documentId"],
+      populate: {
+        category: { fields: ["name", "label"] },
+        subcategory: { fields: ["name", "label"] },
+        state: { fields: ["name", "label"] },
+      },
+      filters: {
+        documentId: { $in: documentIds },
+      },
+      pagination: { pageSize: documentIds.length },
+    },
+    { encodeValuesOnly: true },
+  );
+
+  const content = await getContent<Product[]>(`${cmsApi.PRODUCTS}?${query}`);
+  return (content?.data as Product[] | undefined) ?? [];
 }
 
 /**
@@ -434,8 +458,6 @@ export async function createProductAction(
       "Action: Producto creado exitosamente",
     );
 
-    revalidateTag("products", "default");
-
     return {
       success: true,
       message: "Producto creado exitosamente.",
@@ -645,7 +667,6 @@ export async function updateProductAction(
 
     cmsLogger.info({ documentId }, "Action: Producto actualizado exitosamente");
 
-    revalidateTag("products", "default");
 
     return {
       success: true,
@@ -727,7 +748,6 @@ export async function deleteProductAction(
 
     cmsLogger.info({ documentId }, "Action: Producto eliminado exitosamente");
 
-    revalidateTag("products", "default");
 
     return {
       success: true,
@@ -803,8 +823,6 @@ export async function toggleRetireProductAction(
       { documentId, actionLabel },
       "Action: Estado del producto actualizado",
     );
-    revalidateTag("products", "default");
-
     return { success: true, message: `Producto ${actionLabel} exitosamente.` };
   } catch (error) {
     cmsLogger.error(
@@ -869,7 +887,6 @@ export async function createProductsBulkAction(
 
     const result = await postContentBulk(cmsApi.PRODUCTS, items);
 
-    revalidateTag("products", "default");
 
     const allSucceeded = result.failedCount === 0;
 
@@ -933,7 +950,6 @@ export async function deleteAllProductsAction(): Promise<BulkUploadFormState> {
 
     const result = await deleteContentBulk(cmsApi.PRODUCTS, documentIds);
 
-    revalidateTag("products", "default");
 
     cmsLogger.info(
       { deleted: result.successCount, failed: result.failedCount },
@@ -986,7 +1002,6 @@ export async function deleteProductsBulkAction(
   try {
     const result = await deleteContentBulk(cmsApi.PRODUCTS, documentIds);
 
-    revalidateTag("products", "default");
 
     cmsLogger.info(
       { deleted: result.successCount, failed: result.failedCount },
@@ -1087,7 +1102,6 @@ export async function updateProductsBulkAction(
       }
     }
 
-    revalidateTag("products", "default");
 
     cmsLogger.info(
       { updated: successCount, failed: failedCount },

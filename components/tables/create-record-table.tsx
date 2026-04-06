@@ -15,10 +15,10 @@ export default function CreateRecordTable({
     <>
       <button
         onClick={() => setCreateModalOpen(true)}
-        className="bg-green-700 text-white font-semibold text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-md hover:bg-green-800 items-center justify-center flex gap-0.5 cursor-pointer transition-colors"
+        className="bg-green-700 text-white font-semibold text-[10px] sm:text-xs md:text-sm px-1.5 sm:px-2 md:px-3 py-1 sm:py-1.5 rounded-md hover:bg-green-800 items-center justify-center flex gap-0.5 cursor-pointer transition-colors"
       >
         <AddIcon />
-        <span className="hidden sm:inline">Crear Nuevo</span>
+        <span>Crear Nuevo</span>
       </button>
 
       {/* Componente de creación de registros */}

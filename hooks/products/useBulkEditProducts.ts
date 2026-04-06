@@ -1,7 +1,6 @@
 'use client';
 
 import { useTransition } from 'react';
-import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { updateProductsBulkAction } from '@/actions/products';
 
@@ -11,7 +10,6 @@ interface UseBulkEditProductsConfig {
 }
 
 export function useBulkEditProducts(config: UseBulkEditProductsConfig) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   async function handleSubmit(formData: FormData) {
@@ -50,7 +48,6 @@ export function useBulkEditProducts(config: UseBulkEditProductsConfig) {
           if (result.success) {
             toast.success(result.message || `${result.created ?? 0} productos actualizados.`);
             config.onSuccess?.();
-            router.refresh();
           } else {
             toast.error(result.message || 'Error al actualizar los registros.');
           }

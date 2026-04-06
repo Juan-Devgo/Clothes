@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTransition } from 'react';
 import toast from 'react-hot-toast';
 import { deleteCustomersBulkAction } from '@/actions/customers';
 
@@ -10,7 +9,6 @@ interface UseBulkDeleteCustomersConfig {
 }
 
 export function useBulkDeleteCustomers(config?: UseBulkDeleteCustomersConfig) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   async function handleDelete(documentIds: string[]) {
@@ -27,7 +25,6 @@ export function useBulkDeleteCustomers(config?: UseBulkDeleteCustomersConfig) {
           if (result.success) {
             toast.success(result.message || `${result.deleted ?? 0} clientes eliminados.`);
             config?.onSuccess?.();
-            router.refresh();
           } else {
             toast.error(result.message || 'Error al eliminar los registros.');
           }

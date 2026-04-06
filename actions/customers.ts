@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidateTag, cacheLife, cacheTag } from "next/cache";
 import { cmsApi } from "@/lib/paths";
 import { cmsLogger } from "@/lib/logger";
 import { Customer } from "@/types";
@@ -75,18 +74,15 @@ export interface PaginatedCustomersResult {
   pageCount: number;
 }
 
-async function cachedFetchCustomers(
+async function fetchCustomersFromCMS(
   token: string,
   queryString: string,
   page: number,
   pageSize: number,
 ): Promise<PaginatedCustomersResult> {
-  "use cache";
-  cacheLife({ stale: 0, revalidate: 30, expire: 60 });
-  cacheTag("customers");
-
   const response = await fetch(`${cmsApi.CUSTOMERS}?${queryString}`, {
     method: "GET",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
@@ -178,7 +174,7 @@ export async function getCustomersPaginatedAction(
     if (filters) allQueryObj.filters = filters;
 
     const allQueryString = qs.stringify(allQueryObj, { encodeValuesOnly: true });
-    const allResult = await cachedFetchCustomers(token, allQueryString, 1, 9999);
+    const allResult = await fetchCustomersFromCMS(token, allQueryString, 1, 9999);
 
     const sorted = [...allResult.data].sort((a, b) => {
       const diff =
@@ -211,7 +207,33 @@ export async function getCustomersPaginatedAction(
   }
 
   const queryString = qs.stringify(queryObj, { encodeValuesOnly: true });
-  return cachedFetchCustomers(token, queryString, page, pageSize);
+  return fetchCustomersFromCMS(token, queryString, page, pageSize);
+}
+
+/**
+ * Obtener clientes por sus documentIds (para pinning tras edición masiva)
+ */
+export async function getCustomersByIdsAction(
+  documentIds: string[],
+): Promise<Customer[]> {
+  if (documentIds.length === 0) return [];
+
+  const query = qs.stringify(
+    {
+      fields: ["first_name", "last_name", "phone", "email", "birthdate", "documentId"],
+      populate: {
+        account: { fields: ["documentId"] },
+      },
+      filters: {
+        documentId: { $in: documentIds },
+      },
+      pagination: { pageSize: documentIds.length },
+    },
+    { encodeValuesOnly: true },
+  );
+
+  const content = await getContent<Customer[]>(`${cmsApi.CUSTOMERS}?${query}`);
+  return (content?.data as Customer[] | undefined) ?? [];
 }
 
 /**
@@ -306,7 +328,7 @@ export async function createCustomerAction(
       }
     }
 
-    revalidateTag("customers", "default");
+
 
     cmsLogger.info(
       { customerId: newCustomer.documentId },
@@ -411,7 +433,7 @@ export async function updateCustomerAction(
 
     cmsLogger.info({ documentId }, "Action: Cliente actualizado exitosamente");
 
-    revalidateTag("customers", "default");
+
 
     return {
       success: true,
@@ -543,7 +565,7 @@ export async function deleteCustomerAction(
 
     cmsLogger.info({ documentId }, "Action: Cliente eliminado exitosamente");
 
-    revalidateTag("customers", "default");
+
 
     return {
       success: true,
@@ -641,7 +663,7 @@ export async function createCustomersBulkAction(
       }
     }
 
-    revalidateTag("customers", "default");
+
 
     const allSucceeded = failedCount === 0;
 
@@ -705,7 +727,7 @@ export async function deleteAllCustomersAction(): Promise<BulkUploadFormState> {
 
     const result = await deleteContentBulk(cmsApi.CUSTOMERS, documentIds);
 
-    revalidateTag("customers", "default");
+
 
     cmsLogger.info(
       { deleted: result.successCount, failed: result.failedCount },
@@ -758,7 +780,7 @@ export async function deleteCustomersBulkAction(
   try {
     const result = await deleteContentBulk(cmsApi.CUSTOMERS, documentIds);
 
-    revalidateTag("customers", "default");
+
 
     cmsLogger.info(
       { deleted: result.successCount, failed: result.failedCount },
@@ -837,7 +859,7 @@ export async function updateCustomersBulkAction(
       }
     }
 
-    revalidateTag("customers", "default");
+
 
     cmsLogger.info(
       { updated: successCount, failed: failedCount },

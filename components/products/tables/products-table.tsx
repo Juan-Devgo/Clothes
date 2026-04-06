@@ -24,6 +24,7 @@ import {
   getProductByIdAction,
   getProductsPaginatedAction,
   getProductsAction,
+  getProductsByIdsAction,
 } from "@/actions/products";
 import {
   useBulkUploadProducts,
@@ -33,24 +34,32 @@ import {
 } from "@/hooks/products";
 import { useServerTable } from "@/hooks/tables/useServerTable";
 
-// Lazy load heavy components only needed when modals open (reduce initial JS bundle)
+// Lazy load heavy components only needed when modals open.
+// { loading: () => null } creates a local Suspense boundary so the lazy load
+// doesn't bubble up to route-level loading.tsx (which would unmount the page).
 const EditProductForm = dynamic(
   () => import("@/components/products/forms/edit-product-form"),
+  { loading: () => null },
 );
 const DeleteRecordForm = dynamic(
   () => import("@/components/tables/delete-record-form"),
+  { loading: () => null },
 );
 const ProductDetails = dynamic(
   () => import("@/components/products/details/product-details"),
+  { loading: () => null },
 );
 const UploadDataModal = dynamic(
   () => import("@/components/tables/upload-data-modal"),
+  { loading: () => null },
 );
 const UploadDataTable = dynamic(
   () => import("@/components/tables/upload-data-table"),
+  { loading: () => null },
 );
 const DownloadDataModal = dynamic(
   () => import("@/components/tables/download-data-modal"),
+  { loading: () => null },
 );
 import BulkDeleteModal from "@/components/tables/bulk-delete-modal";
 
@@ -121,6 +130,7 @@ export default function ProductsTable({
   const [modifiedProductId, setModifiedProductId] = useState<
     string | string[] | null
   >(null);
+  const [pinnedRows, setPinnedRows] = useState<Product[]>([]);
 
   const { categories, subcategories } = useGetProductEnums();
   const [isToggling, startToggleTransition] = useTransition();
@@ -135,14 +145,19 @@ export default function ProductsTable({
     refetch();
   }
 
-  function handleBulkEditSuccess() {
+  async function handleBulkEditSuccess() {
     const ids = selectedProducts.map((p) => p.documentId!).filter(Boolean);
     handleBulkSuccess();
     if (ids.length > 0) {
+      const freshRows = await getProductsByIdsAction(ids);
+      setPinnedRows(freshRows);
       setModifiedProductId(null);
       setTimeout(() => {
         setModifiedProductId(ids);
-        setTimeout(() => setModifiedProductId(null), 2500);
+        setTimeout(() => {
+          setModifiedProductId(null);
+          setPinnedRows([]);
+        }, 2500);
       }, 0);
     }
   }
@@ -155,15 +170,20 @@ export default function ProductsTable({
     onSuccess: handleBulkEditSuccess,
   });
 
-  function handleEditSuccess() {
+  async function handleEditSuccess() {
     const id = selectedProduct?.documentId;
     closeAllModals();
     refetch();
     if (id) {
+      const freshRows = await getProductsByIdsAction([id]);
+      setPinnedRows(freshRows);
       setModifiedProductId(null);
       setTimeout(() => {
         setModifiedProductId(id);
-        setTimeout(() => setModifiedProductId(null), 2500);
+        setTimeout(() => {
+          setModifiedProductId(null);
+          setPinnedRows([]);
+        }, 2500);
       }, 0);
     }
   }
@@ -179,9 +199,12 @@ export default function ProductsTable({
   }
 
   function handleCloseUploadModal() {
+    const wasUploaded = bulkUploadProducts.step === "done";
     closeAllModals();
     bulkUploadProducts.reset();
-    refetch();
+    if (wasUploaded) {
+      refetch();
+    }
   }
 
   function handleSelectedRowsChange(selectedRows: Product[]): void {
@@ -190,6 +213,7 @@ export default function ProductsTable({
 
   function toggleRetireProduct(row: Product): void {
     if (!row.documentId) return;
+    const id = row.documentId;
 
     startToggleTransition(async () => {
       const result = await toggleRetireProductAction(
@@ -201,6 +225,16 @@ export default function ProductsTable({
       if (result.success) {
         toast.success(result.message);
         refetch();
+        const freshRows = await getProductsByIdsAction([id]);
+        setPinnedRows(freshRows);
+        setModifiedProductId(null);
+        setTimeout(() => {
+          setModifiedProductId(id);
+          setTimeout(() => {
+            setModifiedProductId(null);
+            setPinnedRows([]);
+          }, 2500);
+        }, 0);
       } else {
         toast.error(result.message);
       }
@@ -295,8 +329,8 @@ export default function ProductsTable({
       sortField: "state.label",
     },
     {
-      name: "Activo",
-      minWidth: "140px",
+      name: "Activo / Retirado",
+      minWidth: "180px",
       center: true,
       cell: (row) => {
         const isRetired = row.state?.name.toUpperCase() === "RETIRED";
@@ -569,6 +603,7 @@ export default function ProductsTable({
         clearSelectedRows={clearSelection}
         keyField="documentId"
         modifiedRowId={modifiedProductId}
+        pinnedRows={pinnedRows}
         serverSide={{
           totalRows,
           loading,
